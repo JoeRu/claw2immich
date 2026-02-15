@@ -17,6 +17,9 @@ claw2immich is a Python MCP (Model Context Protocol) server that exposes selecte
 - `write_capability_report`
 - `get_current_user` (only when permitted by API key/token)
 
+All OpenAPI endpoints are exposed as tools named `immich_<operation>` or `immich_<method>_<path>`.
+Tools are filtered based on auth presence, admin-only markers, and write capability probes (set `IMMICH_WRITE_PROBE_PATH` to enable write tools).
+
 ## Configuration
 Environment variables:
 - `IMMICH_BASE_URL` (default `http://localhost:2283`)

@@ -8,7 +8,9 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+from typing import Any
 
+import main
 import mcp
 from mcp.client import sse as mcp_sse
 
@@ -74,11 +76,13 @@ async def _wait_for_port(host: str, port: int, timeout: float) -> None:
     raise TimeoutError(f"Server did not open port {port} within {timeout:.1f}s")
 
 
-class MCPClientTests(unittest.IsolatedAsyncioTestCase):
+class BaseMCPClientTests(unittest.IsolatedAsyncioTestCase):
     TEST_TIMEOUT_SECONDS = float(os.getenv("MCP_TEST_TIMEOUT", "20"))
+    ENV_PATH_VAR = "IMMICH_ENV_TEST"
+    DEFAULT_ENV_FILE = ".env_test"
 
     async def asyncSetUp(self) -> None:
-        self.env_path = os.getenv("IMMICH_ENV_TEST", ".env_test")
+        self.env_path = os.getenv(self.ENV_PATH_VAR, self.DEFAULT_ENV_FILE)
         self.repo_root = Path(__file__).resolve().parents[1]
         self.mcp_host = os.getenv("MCP_TEST_HOST", "127.0.0.1").strip() or "127.0.0.1"
         port_env = os.getenv("MCP_TEST_PORT", "0").strip()
@@ -151,6 +155,34 @@ class MCPClientTests(unittest.IsolatedAsyncioTestCase):
                 f"Server log: {self.server_log_file.name}\n{log_tail}"
             )
 
+    def _get_write_capability(self) -> dict[str, str | bool]:
+        env_vars = _parse_env_file(self.env_path)
+        original_env = os.environ.copy()
+        try:
+            os.environ.update(env_vars)
+            main._discover_write_capability.cache_clear()
+            return main._discover_write_capability()
+        finally:
+            os.environ.clear()
+            os.environ.update(original_env)
+
+    def _find_write_operation(self) -> dict[str, Any] | None:
+        spec = main._fetch_openapi_spec()
+        operations = main._list_openapi_operations(spec)
+        for entry in operations:
+            method = entry["method"]
+            operation = entry["operation"]
+            if method not in {"POST", "PUT", "PATCH", "DELETE"}:
+                continue
+            if main._operation_admin_only(operation):
+                continue
+            return entry
+        for entry in operations:
+            method = entry["method"]
+            if method in {"POST", "PUT", "PATCH", "DELETE"}:
+                return entry
+        return None
+
     async def test_list_tools_includes_core_tools(self) -> None:
         async def run(session: mcp.ClientSession) -> list[str]:
             tools_result = await session.list_tools()
@@ -180,6 +212,37 @@ class MCPClientTests(unittest.IsolatedAsyncioTestCase):
         }
         self.assertTrue(expected.issubset(set(tool_names)))
 
+    async def test_write_tools_filtered_by_capability(self) -> None:
+        entry = self._find_write_operation()
+        if entry is None:
+            self.skipTest("No write operations found in OpenAPI spec")
+        tool_name = main._tool_name_for_operation(
+            entry["method"], entry["path"], entry["operation"]
+        )
+
+        capability = self._get_write_capability()
+        if not capability.get("configured"):
+            self.skipTest("Write capability probe not configured")
+
+        async def run(session: mcp.ClientSession) -> list[str]:
+            tools_result = await session.list_tools()
+            if isinstance(tools_result, list):
+                tools = tools_result
+            else:
+                tools = getattr(tools_result, "tools", [])
+            names: list[str] = []
+            for tool in tools:
+                name = tool.get("name") if isinstance(tool, dict) else getattr(tool, "name", None)
+                if name:
+                    names.append(name)
+            return names
+
+        tool_names = await self._with_session(run)
+        if capability.get("allowed"):
+            self.assertIn(tool_name, tool_names)
+        else:
+            self.assertNotIn(tool_name, tool_names)
+
     async def test_tool_access_report_shape(self) -> None:
         async def run(session: mcp.ClientSession) -> object:
             return _extract_tool_payload(await session.call_tool("tool_access_report"))
@@ -197,3 +260,8 @@ class MCPClientTests(unittest.IsolatedAsyncioTestCase):
         payload = await self._with_session(run)
         if isinstance(payload, dict) and payload.get("error"):
             self.skipTest(f"Immich server not reachable: {payload.get('detail')}")
+
+
+class MCPClientFullAccessTests(BaseMCPClientTests):
+    ENV_PATH_VAR = "IMMICH_ENV_FULL"
+    DEFAULT_ENV_FILE = ".env"

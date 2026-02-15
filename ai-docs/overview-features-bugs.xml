@@ -6,6 +6,53 @@
   </metadata>
 
   <items>
+    <item id="8" type="feature" status="DONE" priority="MEDIUM" complexity="L" security="true">
+      <title>Expose Immich OpenAPI endpoints as MCP tools with permission filtering</title>
+      <branch>feature/item-8-expose-immich-openapi-endpoints-as-mcp-tools-with-permission-filtering</branch>
+      <justification>Provide full Immich API coverage via MCP tools while only exposing endpoints permitted by the configured API key/token.</justification>
+      <depends-on></depends-on>
+
+      <security-impact>
+        <category>AUTH</category>
+        <category>NETWORK</category>
+        <notes>Large tool surface area increases risk; must ensure permission checks and avoid logging secrets.</notes>
+      </security-impact>
+
+      <tasks>
+        <task id="8.1">Load the Immich OpenAPI spec and generate MCP tool wrappers for all documented endpoints.</task>
+        <task id="8.2">Extend capability discovery to determine which endpoints are permitted for the current API key/token.</task>
+        <task id="8.3">Filter tool registration to only expose permitted endpoints and include reasons for blocked tools.</task>
+        <task id="8.4">Add tests to validate tool exposure for read-only vs full-access credentials.</task>
+        <task id="8.5">Document the generated tool set and permission filtering behavior.</task>
+      </tasks>
+
+      <verification>
+        <manual-steps>
+          <step order="1">Start the MCP server with read-only credentials and confirm write endpoints are hidden.</step>
+          <step order="2">Start the MCP server with full-access credentials and confirm all endpoints are exposed.</step>
+        </manual-steps>
+      </verification>
+
+      <impact-check>
+        <affected-items>
+          <item-ref id="1">Implement MCP server for Immich REST API</item-ref>
+          <item-ref id="2">Filter MCP tools by API key permissions</item-ref>
+          <item-ref id="6">Add env-driven MCP server transport configuration</item-ref>
+        </affected-items>
+        <notes>Items 1, 2, and 6 are complete and tested; expanding tool coverage should reuse existing request and permission checks.</notes>
+      </impact-check>
+      <r>
+        <outcome>DONE</outcome>
+        <observations>Generated MCP tools for OpenAPI operations with auth/admin/write filtering and added tests for write-tool exposure.</observations>
+        <lessons-learned>Using OpenAPI metadata (x-immich-permission/admin-only) plus write probes keeps tool exposure conservative.</lessons-learned>
+        <files>
+          <file>main.py</file>
+          <file>tests/test_mcp_client.py</file>
+          <file>README.md</file>
+          <file>ai-docs/overview-features-bugs.xml</file>
+        </files>
+      </r>
+    </item>
   </items>
 
   <archive>
@@ -287,5 +334,7 @@
     <entry date="2026-02-15">Items 7 implemented. Published MCP ports in docker-compose and documented container settings.</entry>
     <entry date="2026-02-15">Archived items 1, 2, 3, 4, 5, 6, 7.</entry>
     <entry date="2026-02-15">Update scan: verified architecture, dependencies, and completed features with no new items.</entry>
+    <entry date="2026-02-15">Added feature item 8: Expose Immich OpenAPI endpoints as MCP tools with permission filtering.</entry>
+    <entry date="2026-02-15">Items 8 implemented. Generated OpenAPI MCP tools with permission-based filtering and tests.</entry>
   </changelog>
 </overview-features-bugs>

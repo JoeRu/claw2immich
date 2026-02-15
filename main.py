@@ -1,6 +1,8 @@
 from functools import lru_cache
 import os
+import re
 from typing import Any
+from urllib.parse import quote
 
 import httpx
 from mcp.server.fastmcp import FastMCP
@@ -31,7 +33,11 @@ def _get_config() -> dict[str, str]:
     return {"base_url": base_url, "api_key": api_key, "api_token": api_token}
 
 
-def _build_headers(config: dict[str, str], require_auth: bool) -> dict[str, str]:
+def _build_headers(
+    config: dict[str, str],
+    require_auth: bool,
+    extra_headers: dict[str, Any] | None = None,
+) -> dict[str, str]:
     headers = {"accept": "application/json"}
     if config["api_key"]:
         headers["x-api-key"] = config["api_key"]
@@ -39,6 +45,8 @@ def _build_headers(config: dict[str, str], require_auth: bool) -> dict[str, str]
         headers["authorization"] = f"Bearer {config['api_token']}"
     if require_auth and not (config["api_key"] or config["api_token"]):
         raise ValueError("IMMICH_API_KEY or IMMICH_API_TOKEN must be set for this call")
+    if extra_headers:
+        headers.update({str(k): str(v) for k, v in extra_headers.items()})
     return headers
 
 
@@ -49,11 +57,12 @@ def _request(
     params: dict[str, Any] | None = None,
     json_body: Any | None = None,
     require_auth: bool = False,
+    extra_headers: dict[str, Any] | None = None,
 ) -> Any:
     try:
         config = _get_config()
         url = f"{config['base_url']}{path}"
-        headers = _build_headers(config, require_auth)
+        headers = _build_headers(config, require_auth, extra_headers)
         with httpx.Client(timeout=DEFAULT_TIMEOUT) as client:
             response = client.request(
                 method, url, params=params, json=json_body, headers=headers
@@ -108,6 +117,90 @@ def _fetch_openapi_spec() -> dict[str, Any]:
         response = client.get(OPENAPI_SPEC_URL)
     response.raise_for_status()
     return response.json()
+
+
+def _openapi_base_path(spec: dict[str, Any]) -> str:
+    servers = spec.get("servers", [])
+    if servers:
+        url = servers[0].get("url", "")
+        if isinstance(url, str):
+            return url.rstrip("/")
+    return ""
+
+
+def _list_openapi_operations(spec: dict[str, Any]) -> list[dict[str, Any]]:
+    operations: list[dict[str, Any]] = []
+    for path, methods in spec.get("paths", {}).items():
+        if not isinstance(methods, dict):
+            continue
+        for method, operation in methods.items():
+            if not isinstance(operation, dict):
+                continue
+            method_upper = method.upper()
+            if method_upper not in {"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"}:
+                continue
+            operations.append(
+                {
+                    "method": method_upper,
+                    "path": path,
+                    "operation": operation,
+                }
+            )
+    return operations
+
+
+def _sanitize_tool_name(value: str) -> str:
+    value = value.lower()
+    value = re.sub(r"[^a-z0-9]+", "_", value)
+    value = re.sub(r"_+", "_", value).strip("_")
+    return value
+
+
+def _tool_name_for_operation(method: str, path: str, operation: dict[str, Any]) -> str:
+    operation_id = operation.get("operationId")
+    base = operation_id or f"{method}_{path}"
+    base = _sanitize_tool_name(base)
+    if not base.startswith("immich_"):
+        base = f"immich_{base}"
+    return base
+
+
+def _apply_path_params(path_template: str, path_params: dict[str, Any] | None) -> str:
+    params = path_params or {}
+
+    def replacer(match: re.Match[str]) -> str:
+        name = match.group(1)
+        if name not in params:
+            raise ValueError(f"Missing path parameter: {name}")
+        return quote(str(params[name]), safe="")
+
+    return re.sub(r"{([^}]+)}", replacer, path_template)
+
+
+def _operation_requires_auth(operation: dict[str, Any], spec: dict[str, Any]) -> bool:
+    if "security" in operation:
+        return bool(operation.get("security"))
+    security = spec.get("security")
+    if security is None:
+        return False
+    return bool(security)
+
+
+def _operation_admin_only(operation: dict[str, Any]) -> bool:
+    return bool(operation.get("x-immich-admin-only"))
+
+
+def _operation_permission(operation: dict[str, Any]) -> str | None:
+    permission = operation.get("x-immich-permission")
+    return str(permission) if permission else None
+
+
+@lru_cache
+def _discover_user_profile() -> dict[str, Any]:
+    profile = _request("GET", "/api/users/me", require_auth=True)
+    if isinstance(profile, dict) and not profile.get("error"):
+        return profile
+    return {}
 
 
 @lru_cache
@@ -186,29 +279,90 @@ def _discover_write_capability() -> dict[str, str | bool]:
     }
 
 
-def openapi_summary() -> dict[str, Any]:
-    """Return OpenAPI title, version, and path count."""
+def _openapi_tool_access() -> dict[str, Any]:
     spec = _fetch_openapi_spec()
-    info = spec.get("info", {})
-    paths = spec.get("paths", {})
+    operations = _list_openapi_operations(spec)
+    base_path = _openapi_base_path(spec)
+    config = _get_config()
+    has_auth = bool(config["api_key"] or config["api_token"])
+    write_capability = _discover_write_capability()
+    profile = _discover_user_profile() if has_auth else {}
+    is_admin = bool(profile.get("isAdmin"))
+
+    allowed_tools: list[str] = []
+    blocked_tools: list[dict[str, str]] = []
+    seen_names: set[str] = set()
+
+    for entry in operations:
+        method = entry["method"]
+        path = entry["path"]
+        operation = entry["operation"]
+        tool_name = _tool_name_for_operation(method, path, operation)
+        if tool_name in seen_names:
+            suffix = 2
+            while f"{tool_name}_{suffix}" in seen_names:
+                suffix += 1
+            tool_name = f"{tool_name}_{suffix}"
+        seen_names.add(tool_name)
+
+        requires_auth = _operation_requires_auth(operation, spec)
+        if requires_auth and not has_auth:
+            blocked_tools.append(
+                {
+                    "tool": tool_name,
+                    "reason": "Missing IMMICH_API_KEY or IMMICH_API_TOKEN",
+                }
+            )
+            continue
+
+        if _operation_admin_only(operation) and not is_admin:
+            blocked_tools.append(
+                {
+                    "tool": tool_name,
+                    "reason": "Admin-only endpoint",
+                }
+            )
+            continue
+
+        is_write = method in {"POST", "PUT", "PATCH", "DELETE"}
+        if is_write and not bool(write_capability.get("allowed")):
+            reason = str(write_capability.get("reason") or "Write capability not allowed")
+            blocked_tools.append({"tool": tool_name, "reason": reason})
+            continue
+
+        allowed_tools.append(tool_name)
+
     return {
-        "title": info.get("title"),
-        "version": info.get("version"),
-        "path_count": len(paths),
+        "allowed_tools": allowed_tools,
+        "blocked_tools": blocked_tools,
+        "base_path": base_path,
+        "operations": operations,
     }
 
 
-def list_openapi_paths(limit: int = 20) -> list[str]:
-    """List OpenAPI method/path entries (limited)."""
-    spec = _fetch_openapi_spec()
-    paths = spec.get("paths", {})
-    entries: list[str] = []
-    for path, methods in paths.items():
-        for method in methods.keys():
-            entries.append(f"{method.upper()} {path}")
-            if len(entries) >= limit:
-                return entries
-    return entries
+# def openapi_summary() -> dict[str, Any]:
+#     """Return OpenAPI title, version, and path count."""
+#     spec = _fetch_openapi_spec()
+#     info = spec.get("info", {})
+#     paths = spec.get("paths", {})
+#     return {
+#         "title": info.get("title"),
+#         "version": info.get("version"),
+#         "path_count": len(paths),
+#     }
+
+
+# def list_openapi_paths(limit: int = 20) -> list[str]:
+#     """List OpenAPI method/path entries (limited)."""
+#     spec = _fetch_openapi_spec()
+#     paths = spec.get("paths", {})
+#     entries: list[str] = []
+#     for path, methods in paths.items():
+#         for method in methods.keys():
+#             entries.append(f"{method.upper()} {path}")
+#             if len(entries) >= limit:
+#                 return entries
+#     return entries
 
 
 def ping_server() -> Any:
@@ -251,6 +405,9 @@ def tool_access_report() -> dict[str, Any]:
             blocked_tools.append(
                 {"tool": tool_name, "reason": str(info.get("reason"))}
             )
+    openapi_access = _openapi_tool_access()
+    allowed_tools.extend(openapi_access["allowed_tools"])
+    blocked_tools.extend(openapi_access["blocked_tools"])
     return {"allowed_tools": allowed_tools, "blocked_tools": blocked_tools}
 
 
@@ -273,6 +430,65 @@ def _register_tools(capabilities: dict[str, dict[str, str | bool]]) -> None:
 
     if capabilities.get("get_current_user", {}).get("allowed"):
         mcp.tool()(get_current_user)
+
+    _register_openapi_tools()
+
+
+def _register_openapi_tools() -> None:
+    access = _openapi_tool_access()
+    spec = _fetch_openapi_spec()
+    base_path = access["base_path"]
+    operations = access["operations"]
+    allowed = set(access["allowed_tools"])
+    used_names: set[str] = set()
+
+    for entry in operations:
+        method = entry["method"]
+        path = entry["path"]
+        operation = entry["operation"]
+        tool_name = _tool_name_for_operation(method, path, operation)
+        if tool_name in used_names:
+            suffix = 2
+            while f"{tool_name}_{suffix}" in used_names:
+                suffix += 1
+            tool_name = f"{tool_name}_{suffix}"
+        used_names.add(tool_name)
+
+        if tool_name not in allowed:
+            continue
+
+        summary = operation.get("summary") or operation.get("description") or ""
+        permission = _operation_permission(operation)
+        if permission:
+            summary = f"{summary} (permission: {permission})".strip()
+        description = f"{method} {base_path}{path}"
+        if summary:
+            description = f"{description} - {summary}"
+
+        requires_auth = _operation_requires_auth(operation, spec)
+
+        def _make_tool(method: str, path_template: str, require_auth: bool):
+            def tool(
+                path_params: dict[str, Any] | None = None,
+                query_params: dict[str, Any] | None = None,
+                json_body: Any | None = None,
+                headers: dict[str, Any] | None = None,
+            ) -> Any:
+                final_path = _apply_path_params(path_template, path_params)
+                full_path = f"{base_path}{final_path}"
+                return _request(
+                    method,
+                    full_path,
+                    params=query_params,
+                    json_body=json_body,
+                    require_auth=require_auth,
+                    extra_headers=headers,
+                )
+
+            return tool
+
+        tool_func = _make_tool(method, path, requires_auth)
+        mcp.tool(name=tool_name, description=description)(tool_func)
 
 
 def main() -> None:

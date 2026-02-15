@@ -33,6 +33,6 @@ Create a **feature item** in the implementation plan. The user's argument is the
 
 - Never skip `status="PENDING"`
 - Always search for duplicates first
-- XL items must be decomposed into sub-items
+- L and XL items must be decomposed into sub-items
 - Respect the 5-item-per-interaction limit
 - Keep XML valid
