@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<overview>
+  <metadata>
+    <title>claw2immich</title>
+    <version>0.1.0</version>
+    <analyzed>2026-02-15</analyzed>
+    <updated>2026-02-15</updated>
+  </metadata>
+
+  <architecture>
+    <description>Single-file Python entry point; MCP server planned for Immich REST API.</description>
+    <patterns>
+      <pattern>Single-file script (temporary)</pattern>
+    </patterns>
+    <system-requirements>
+      <requirement>Python &gt;= 3.12</requirement>
+    </system-requirements>
+    <external-dependencies>
+      <dependency>httpx</dependency>
+      <dependency>mcp[cli]</dependency>
+    </external-dependencies>
+    <interfaces>
+      <inbound>
+        <interface>CLI entry point (planned MCP server)</interface>
+      </inbound>
+      <outbound>
+        <interface>Immich REST API via OpenAPI spec</interface>
+      </outbound>
+    </interfaces>
+    <design-decisions>
+      <decision date="2026-02-15">Start with a single-file entry point to iterate quickly.</decision>
+    </design-decisions>
+  </architecture>
+
+  <environments>
+    <environment name="dev">Local development only (no staging/prod defined)</environment>
+  </environments>
+
+  <security>
+  </security>
+
+  <completed-features>
+  </completed-features>
+</overview>

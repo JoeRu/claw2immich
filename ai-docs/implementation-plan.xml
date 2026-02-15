@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<implementation-plan>
+  <metadata>
+    <title>claw2immich</title>
+    <version>0.1.0</version>
+    <status>DRAFT</status>
+    <created>2026-02-15</created>
+    <updated>2026-02-15</updated>
+    <owner>TBD</owner>
+    <repository>TBD</repository>
+  </metadata>
+
+  <goals>
+    <goal>Define the initial scope, workflow, and architecture for the project.</goal>
+  </goals>
+  <scope>
+    <in-scope>Document baseline goals and the first executable entry point.</in-scope>
+    <out-of-scope>Production features until scope is defined.</out-of-scope>
+  </scope>
+
+  <architecture>
+    <description>TBD</description>
+    <patterns>
+      <pattern>TBD</pattern>
+    </patterns>
+    <system-requirements>
+      <requirement>Python &gt;= 3.12</requirement>
+    </system-requirements>
+    <external-dependencies>
+      <dependency>httpx</dependency>
+      <dependency>mcp[cli]</dependency>
+    </external-dependencies>
+    <interfaces>
+      <interface type="inbound">TBD</interface>
+      <interface type="outbound">TBD</interface>
+    </interfaces>
+    <design-decisions>
+      <decision date="2026-02-15">Project initialized with a single-file entry point.</decision>
+    </design-decisions>
+  </architecture>
+
+  <items>
+    <item id="1" type="tech-debt" status="DONE" priority="HIGH" complexity="M">
+      <title>Define MCP server goals and workflow</title>
+      <justification>Project goal is now clear (MCP server for Immich REST API); document scope, OpenAPI source, and workflow before feature work.</justification>
+      <tasks>
+        <task id="1.1">Update README goals to state the MCP server target and intended users</task>
+        <task id="1.2">Document in-scope and out-of-scope items for the initial MCP server</task>
+        <task id="1.3">Describe the OpenAPI spec source and update workflow in README</task>
+        <task id="1.4">Document expected run/test commands (even if placeholders)</task>
+      </tasks>
+      <verification>
+        <manual-steps>
+          <step order="1">Confirm README includes MCP server goals, scope, and OpenAPI update workflow</step>
+          <step order="2">Confirm README lists run/test commands or placeholders</step>
+        </manual-steps>
+      </verification>
+      <replan date="2026-02-15">
+        <reason>Project goal clarified: build an MCP server that interfaces with Immich REST API using the OpenAPI spec.</reason>
+        <changes>Title and justification updated, tasks expanded, complexity S→M, verification steps updated.</changes>
+      </replan>
+      <r>
+        <outcome>DONE</outcome>
+        <observations>README now states MCP server goals, scope, and OpenAPI spec workflow.</observations>
+        <lessons-learned>Keep the OpenAPI update workflow explicit while tooling is manual.</lessons-learned>
+        <files>
+          <file>README.md</file>
+        </files>
+      </r>
+    </item>
+
+    <item id="2" type="feature" status="BACKLOG" priority="MEDIUM" complexity="S">
+      <title>Add a minimal CLI scaffold</title>
+      <justification>Establish a stable entry point for future commands.</justification>
+      <tasks>
+        <task id="2.1">Add argparse-based CLI in main.py</task>
+        <task id="2.2">Provide a placeholder command that prints a clear TODO</task>
+      </tasks>
+      <verification>
+        <manual-steps>
+          <step order="1">Run: python main.py --help</step>
+          <step order="2">Run: python main.py placeholder</step>
+        </manual-steps>
+      </verification>
+      <r>
+        <outcome></outcome>
+        <files><file></file></files>
+      </r>
+    </item>
+  </items>
+
+  <changelog>
+    <entry date="2026-02-15">Initial roadmap created.</entry>
+    <entry date="2026-02-15">Item 1 completed: documented MCP server goals and workflow.</entry>
+  </changelog>
+</implementation-plan>

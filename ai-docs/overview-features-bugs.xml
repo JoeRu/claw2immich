@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<overview-features-bugs>
+  <metadata>
+    <created>2026-02-15</created>
+    <updated>2026-02-15</updated>
+  </metadata>
+
+  <items>
+    <item id="1" type="feature" status="DONE" priority="MEDIUM" complexity="L" security="true">
+      <title>Implement MCP server for Immich REST API</title>
+      <branch>feature/item-1-implement-mcp-server-for-immich</branch>
+      <justification>Expose Immich endpoints via MCP using the OpenAPI spec as the source of truth.</justification>
+      <depends-on></depends-on>
+
+      <security-impact>
+        <category>AUTH</category>
+        <category>NETWORK</category>
+        <notes>Handles API tokens/keys and remote API calls; ensure secrets are not logged and TLS is required.</notes>
+      </security-impact>
+
+      <tasks>
+        <task id="1.1">Define configuration inputs (Immich base URL, API key/token)</task>
+        <task id="1.2">Ingest the OpenAPI spec and map core endpoints to MCP tools</task>
+        <task id="1.3">Implement request/response handling with httpx</task>
+        <task id="1.4">Add basic error handling and user-facing messages</task>
+      </tasks>
+
+      <verification>
+        <manual-steps>
+          <step order="1">Start the MCP server and list available tools</step>
+          <step order="2">Invoke one read-only Immich endpoint and verify a successful response</step>
+        </manual-steps>
+      </verification>
+
+      <r>
+        <outcome>DONE</outcome>
+        <observations>Added config-driven Immich HTTP handling, OpenAPI spec fetch, and core MCP tools (ping, server info/version, current user).</observations>
+        <lessons-learned>Use the raw GitHub URL for JSON specs to avoid HTML responses.</lessons-learned>
+        <files>
+          <file>main.py</file>
+          <file>ai-docs/overview-features-bugs.xml</file>
+        </files>
+      </r>
+    </item>
+  </items>
+
+  <archive>
+  </archive>
+
+  <changelog>
+    <entry date="2026-02-15">Added feature item 1: Implement MCP server for Immich REST API.</entry>
+    <entry date="2026-02-15">Item 1 approved with branch feature/item-1-implement-mcp-server-for-immich.</entry>
+    <entry date="2026-02-15">Items 1 implemented. Added Immich MCP tools, OpenAPI ingestion, and config-driven HTTP handling.</entry>
+  </changelog>
+</overview-features-bugs>
