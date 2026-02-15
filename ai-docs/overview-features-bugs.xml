@@ -6,7 +6,10 @@
   </metadata>
 
   <items>
-    <item id="1" type="feature" status="DONE" priority="MEDIUM" complexity="L" security="true">
+  </items>
+
+  <archive>
+    <item id="1" type="feature" status="DONE" priority="MEDIUM" complexity="L" security="true" archived="2026-02-15">
       <title>Implement MCP server for Immich REST API</title>
       <branch>feature/item-1-implement-mcp-server-for-immich</branch>
       <justification>Expose Immich endpoints via MCP using the OpenAPI spec as the source of truth.</justification>
@@ -42,7 +45,7 @@
         </files>
       </r>
     </item>
-    <item id="2" type="feature" status="DONE" priority="MEDIUM" complexity="M" security="false">
+    <item id="2" type="feature" status="DONE" priority="MEDIUM" complexity="M" security="false" archived="2026-02-15">
       <title>Filter MCP tools by API key permissions</title>
       <branch>feature/item-2-filter-mcp-tools-by-api-key-permissions</branch>
       <justification>Limit exposed MCP tools to actions permitted by the Immich API key or token to avoid authorization errors and reduce accidental misuse.</justification>
@@ -78,7 +81,7 @@
         </files>
       </r>
     </item>
-    <item id="3" type="feature" status="DONE" priority="MEDIUM" complexity="M" security="false">
+    <item id="3" type="feature" status="DONE" priority="MEDIUM" complexity="M" security="false" archived="2026-02-15">
       <title>Add integration test using .env_test credentials</title>
       <branch>feature/item-3-add-integration-test-using-env-test-credentials</branch>
       <justification>Validate behavior with restricted read-only credentials and ensure tool exposure and calls align with allowed permissions.</justification>
@@ -103,7 +106,7 @@
           <item-ref id="1">Implement MCP server for Immich REST API</item-ref>
           <item-ref id="2">Filter MCP tools by API key permissions</item-ref>
         </affected-items>
-        <notes>Items 1 and 2 have no completeness or test-coverage metadata; integration tests will reduce manual verification risk.</notes>
+        <notes>Items 1 and 2 lack completeness/test-coverage metadata; integration tests will reduce manual verification risk.</notes>
       </impact-check>
       <r>
         <outcome>DONE</outcome>
@@ -116,7 +119,7 @@
         </files>
       </r>
     </item>
-    <item id="4" type="refactoring" status="DONE" priority="MEDIUM" complexity="S" security="false">
+    <item id="4" type="refactoring" status="DONE" priority="MEDIUM" complexity="S" security="false" archived="2026-02-15">
       <title>Update README to reflect current project usage and status</title>
       <branch>refactoring/item-4-update-readme-to-reflect-current-project-usage-and-status</branch>
       <justification>Keep project documentation accurate so users can run and test the current MCP server and understand its status.</justification>
@@ -152,7 +155,7 @@
         </files>
       </r>
     </item>
-    <item id="5" type="feature" status="DONE" priority="MEDIUM" complexity="M" security="false">
+    <item id="5" type="feature" status="DONE" priority="MEDIUM" complexity="M" security="false" archived="2026-02-15">
       <title>Add Dockerfile and docker-compose for local usage</title>
       <branch>feature/item-5-add-dockerfile-and-docker-compose-for-local-usage</branch>
       <justification>Provide containerized setup for running the MCP server with consistent dependencies.</justification>
@@ -190,9 +193,80 @@
         </files>
       </r>
     </item>
-  </items>
+    <item id="6" type="feature" status="DONE" priority="MEDIUM" complexity="S" security="false" archived="2026-02-15">
+      <title>Add env-driven MCP server transport configuration</title>
+      <branch>feature/item-6-add-env-driven-mcp-server-transport-configuration</branch>
+      <justification>Allow configuring host, port, transport, and log level via environment variables so SSE-based tests and local runs can be controlled without code changes.</justification>
+      <depends-on></depends-on>
 
-  <archive>
+      <tasks>
+        <task id="6.1">Add environment variables to control MCP host, port, transport, and log level.</task>
+        <task id="6.2">Update MCP client tests to start the server with the configured transport and port.</task>
+        <task id="6.3">Document the new MCP environment variables in the README.</task>
+      </tasks>
+
+      <verification>
+        <manual-steps>
+          <step order="1">Start the MCP server with MCP_TRANSPORT=sse and confirm it binds to the configured host/port.</step>
+          <step order="2">Run the test suite to confirm the SSE-based MCP client tests pass.</step>
+        </manual-steps>
+      </verification>
+
+      <impact-check>
+        <affected-items>
+          <item-ref id="1">Implement MCP server for Immich REST API</item-ref>
+          <item-ref id="3">Add integration test using .env_test credentials</item-ref>
+        </affected-items>
+        <notes>Items 1 and 3 lack completeness/test-coverage metadata; ensure transport changes do not break stdio usage.</notes>
+      </impact-check>
+      <r>
+        <outcome>DONE</outcome>
+        <observations>Added MCP transport configuration via environment variables and updated MCP client tests to run against an SSE server process.</observations>
+        <lessons-learned>Using the client session as an async context manager is required to receive SSE responses reliably.</lessons-learned>
+        <files>
+          <file>main.py</file>
+          <file>tests/test_mcp_client.py</file>
+          <file>README.md</file>
+          <file>ai-docs/overview-features-bugs.xml</file>
+        </files>
+      </r>
+    </item>
+    <item id="7" type="refactoring" status="DONE" priority="MEDIUM" complexity="S" security="false" archived="2026-02-15">
+      <title>Expose MCP ports in docker-compose</title>
+      <branch>refactoring/item-7-expose-mcp-ports-in-docker-compose</branch>
+      <justification>Allow local Docker users to access the MCP server by publishing the configured host/port through docker-compose.</justification>
+      <depends-on></depends-on>
+
+      <tasks>
+        <task id="7.1">Add MCP port mapping to docker-compose using a configurable host port.</task>
+        <task id="7.2">Ensure env defaults align with MCP_HOST/MCP_PORT configuration.</task>
+        <task id="7.3">Update README Docker section to document the exposed port.</task>
+      </tasks>
+
+      <verification>
+        <manual-steps>
+          <step order="1">Start docker-compose and confirm the MCP server is reachable on the published port.</step>
+        </manual-steps>
+      </verification>
+
+      <impact-check>
+        <affected-items>
+          <item-ref id="5">Add Dockerfile and docker-compose for local usage</item-ref>
+          <item-ref id="6">Add env-driven MCP server transport configuration</item-ref>
+        </affected-items>
+        <notes>Items 5 and 6 lack completeness/test-coverage metadata; validate container networking behavior manually.</notes>
+      </impact-check>
+      <r>
+        <outcome>DONE</outcome>
+        <observations>Published the MCP port via docker-compose and documented the MCP transport and port configuration for containers.</observations>
+        <lessons-learned>Containerized MCP access requires binding to 0.0.0.0 and publishing the configured port.</lessons-learned>
+        <files>
+          <file>docker-compose.yaml</file>
+          <file>README.md</file>
+          <file>ai-docs/overview-features-bugs.xml</file>
+        </files>
+      </r>
+    </item>
   </archive>
 
   <changelog>
@@ -207,5 +281,11 @@
     <entry date="2026-02-15">Added feature item 5: Add Dockerfile and docker-compose for local usage.</entry>
     <entry date="2026-02-15">Items 5 implemented. Added Dockerfile, docker-compose configuration, and documentation.</entry>
     <entry date="2026-02-15">Items 4 implemented. Updated README with current usage, tools, and test guidance.</entry>
+    <entry date="2026-02-15">Added feature item 6: Add env-driven MCP server transport configuration.</entry>
+    <entry date="2026-02-15">Items 6 implemented. Added env-driven MCP server transport settings, SSE test harness, and documentation.</entry>
+    <entry date="2026-02-15">Added refactor item 7: Expose MCP ports in docker-compose.</entry>
+    <entry date="2026-02-15">Items 7 implemented. Published MCP ports in docker-compose and documented container settings.</entry>
+    <entry date="2026-02-15">Archived items 1, 2, 3, 4, 5, 6, 7.</entry>
+    <entry date="2026-02-15">Update scan: verified architecture, dependencies, and completed features with no new items.</entry>
   </changelog>
 </overview-features-bugs>

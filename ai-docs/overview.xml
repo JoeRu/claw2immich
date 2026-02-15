@@ -8,7 +8,7 @@
   </metadata>
 
   <architecture>
-    <description>Single-file Python entry point; MCP server planned for Immich REST API.</description>
+    <description>Single-file Python entry point with configurable stdio/SSE/streamable HTTP MCP transports for Immich REST API access.</description>
     <patterns>
       <pattern>Single-file script (temporary)</pattern>
     </patterns>
@@ -21,7 +21,8 @@
     </external-dependencies>
     <interfaces>
       <inbound>
-        <interface>CLI entry point (planned MCP server)</interface>
+        <interface>CLI entry point (stdio MCP server)</interface>
+        <interface>SSE/streamable HTTP MCP server (optional)</interface>
       </inbound>
       <outbound>
         <interface>Immich REST API via OpenAPI spec</interface>
@@ -29,6 +30,7 @@
     </interfaces>
     <design-decisions>
       <decision date="2026-02-15">Start with a single-file entry point to iterate quickly.</decision>
+      <decision date="2026-02-15">Allow MCP transport/host/port configuration via environment variables for tests and containers.</decision>
     </design-decisions>
   </architecture>
 
@@ -37,8 +39,72 @@
   </environments>
 
   <security>
+    <note completed="2026-02-15" source-item="1">Auth and network handling introduced for Immich API access; ensure secrets are not logged and TLS is required.</note>
   </security>
 
   <completed-features>
+    <feature id="CF-1" completed="2026-02-15" source-item="1" completeness="FULL" test-coverage="TESTED">
+      <title>Implement MCP server for Immich REST API</title>
+      <description>Added config-driven Immich HTTP handling, OpenAPI spec fetch, and core MCP tools (ping, server info/version, current user).</description>
+      <files>
+        <file>main.py</file>
+        <file>ai-docs/overview-features-bugs.xml</file>
+      </files>
+    </feature>
+    <feature id="CF-2" completed="2026-02-15" source-item="2" completeness="FULL" test-coverage="TESTED">
+      <title>Filter MCP tools by API key permissions</title>
+      <description>Added capability discovery and conditional tool registration; provided a tool access report for visibility into blocked tools.</description>
+      <files>
+        <file>main.py</file>
+        <file>ai-docs/overview-features-bugs.xml</file>
+      </files>
+    </feature>
+    <feature id="CF-3" completed="2026-02-15" source-item="3" completeness="FULL" test-coverage="TESTED">
+      <title>Add integration test using .env_test credentials</title>
+      <description>Added integration tests that load env files and assert tool exposure matches Immich permission probes.</description>
+      <files>
+        <file>tests/test_integration_permissions.py</file>
+        <file>README.md</file>
+        <file>ai-docs/overview-features-bugs.xml</file>
+      </files>
+    </feature>
+    <feature id="CF-4" completed="2026-02-15" source-item="4" completeness="FULL" test-coverage="TESTED">
+      <title>Update README to reflect current project usage and status</title>
+      <description>Updated README to list current tools, configuration, and integration test setup aligned with the implemented MCP server.</description>
+      <files>
+        <file>README.md</file>
+        <file>ai-docs/overview-features-bugs.xml</file>
+      </files>
+    </feature>
+    <feature id="CF-5" completed="2026-02-15" source-item="5" completeness="FULL" test-coverage="TESTED">
+      <title>Add Dockerfile and docker-compose for local usage</title>
+      <description>Added Dockerfile, docker-compose configuration, and a .dockerignore to keep secrets out of images.</description>
+      <files>
+        <file>Dockerfile</file>
+        <file>docker-compose.yaml</file>
+        <file>.dockerignore</file>
+        <file>README.md</file>
+        <file>ai-docs/overview-features-bugs.xml</file>
+      </files>
+    </feature>
+    <feature id="CF-6" completed="2026-02-15" source-item="6" completeness="FULL" test-coverage="TESTED">
+      <title>Add env-driven MCP server transport configuration</title>
+      <description>Added MCP transport configuration via environment variables and updated MCP client tests to run against an SSE server process.</description>
+      <files>
+        <file>main.py</file>
+        <file>tests/test_mcp_client.py</file>
+        <file>README.md</file>
+        <file>ai-docs/overview-features-bugs.xml</file>
+      </files>
+    </feature>
+    <feature id="CF-7" completed="2026-02-15" source-item="7" completeness="FULL" test-coverage="TESTED">
+      <title>Expose MCP ports in docker-compose</title>
+      <description>Published the MCP port via docker-compose and documented the MCP transport and port configuration for containers.</description>
+      <files>
+        <file>docker-compose.yaml</file>
+        <file>README.md</file>
+        <file>ai-docs/overview-features-bugs.xml</file>
+      </files>
+    </feature>
   </completed-features>
 </overview>

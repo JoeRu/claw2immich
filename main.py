@@ -5,7 +5,15 @@ from typing import Any
 import httpx
 from mcp.server.fastmcp import FastMCP
 
-mcp = FastMCP("claw2immich")
+MCP_HOST = os.getenv("MCP_HOST", "127.0.0.1").strip() or "127.0.0.1"
+MCP_PORT_RAW = os.getenv("MCP_PORT", "8000").strip()
+MCP_LOG_LEVEL = os.getenv("MCP_LOG_LEVEL", "INFO").strip().upper() or "INFO"
+try:
+    MCP_PORT = int(MCP_PORT_RAW)
+except ValueError as exc:
+    raise ValueError("MCP_PORT must be an integer") from exc
+
+mcp = FastMCP("claw2immich", host=MCP_HOST, port=MCP_PORT, log_level=MCP_LOG_LEVEL)
 
 OPENAPI_SPEC_URL = (
     "https://raw.githubusercontent.com/immich-app/immich/main/open-api/immich-openapi-specs.json"
@@ -270,7 +278,11 @@ def _register_tools(capabilities: dict[str, dict[str, str | bool]]) -> None:
 def main() -> None:
     capabilities = _discover_capabilities()
     _register_tools(capabilities)
-    mcp.run(transport="stdio")
+    transport = os.getenv("MCP_TRANSPORT", "stdio").strip().lower()
+    mount_path = os.getenv("MCP_MOUNT_PATH", "").strip() or None
+    if transport not in {"stdio", "sse", "streamable-http"}:
+        raise ValueError("MCP_TRANSPORT must be stdio, sse, or streamable-http")
+    mcp.run(transport=transport, mount_path=mount_path)
 
 
 if __name__ == "__main__":

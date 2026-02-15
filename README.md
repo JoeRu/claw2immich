@@ -25,6 +25,13 @@ Environment variables:
 - `IMMICH_WRITE_PROBE_PATH` (optional write capability probe)
 - `IMMICH_WRITE_PROBE_METHOD` (default `POST`)
 
+MCP server environment variables:
+- `MCP_TRANSPORT` (`stdio`, `sse`, or `streamable-http`; default `stdio`)
+- `MCP_HOST` (default `127.0.0.1`)
+- `MCP_PORT` (default `8000`)
+- `MCP_MOUNT_PATH` (optional mount path for SSE transport)
+- `MCP_LOG_LEVEL` (default `INFO`)
+
 OpenAPI spec source:
 https://github.com/immich-app/immich/blob/main/open-api/immich-openapi-specs.json
 
@@ -40,6 +47,12 @@ Integration test setup:
 1. Ensure an Immich server is running and reachable.
 2. Create `.env_test` with read-only credentials.
 3. Create `.env` with full-access credentials, or set `IMMICH_ENV_FULL` to another file.
+
+MCP client tests start a background server using SSE. You can override defaults:
+- `MCP_TEST_HOST` (default `127.0.0.1`)
+- `MCP_TEST_PORT` (default `0` for auto-assign)
+- `MCP_TEST_TIMEOUT` (default `20` seconds)
+- `MCP_LOG_LEVEL` (default `DEBUG` for test server logs)
 
 Run:
 ```
@@ -69,3 +82,8 @@ Environment variables are passed through from your shell or `.env` file:
 - `IMMICH_API_TOKEN`
 - `IMMICH_WRITE_PROBE_PATH`
 - `IMMICH_WRITE_PROBE_METHOD`
+
+MCP server settings for Docker Compose:
+- `MCP_TRANSPORT` (default `sse` in compose; use `streamable-http` for HTTP)
+- `MCP_HOST` (default `0.0.0.0` in compose)
+- `MCP_PORT` (default `8000`; published as the host port)

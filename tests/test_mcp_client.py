@@ -1,11 +1,16 @@
+import asyncio
 import json
 import os
+import socket
+import subprocess
 import sys
+import tempfile
+import time
 import unittest
 from pathlib import Path
 
 import mcp
-from mcp.client import stdio as mcp_stdio
+from mcp.client import sse as mcp_sse
 
 
 def _parse_env_file(path: str) -> dict[str, str]:
@@ -52,27 +57,107 @@ def _extract_tool_payload(result: mcp.types.CallToolResult) -> object:
         return text
 
 
+def _find_free_port(host: str) -> int:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.bind((host, 0))
+        return sock.getsockname()[1]
+
+
+async def _wait_for_port(host: str, port: int, timeout: float) -> None:
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        try:
+            with socket.create_connection((host, port), timeout=1):
+                return
+        except OSError:
+            await asyncio.sleep(0.1)
+    raise TimeoutError(f"Server did not open port {port} within {timeout:.1f}s")
+
+
 class MCPClientTests(unittest.IsolatedAsyncioTestCase):
+    TEST_TIMEOUT_SECONDS = float(os.getenv("MCP_TEST_TIMEOUT", "20"))
+
     async def asyncSetUp(self) -> None:
         self.env_path = os.getenv("IMMICH_ENV_TEST", ".env_test")
-        self.server_env = _build_server_env(self.env_path)
         self.repo_root = Path(__file__).resolve().parents[1]
+        self.mcp_host = os.getenv("MCP_TEST_HOST", "127.0.0.1").strip() or "127.0.0.1"
+        port_env = os.getenv("MCP_TEST_PORT", "0").strip()
+        self.mcp_port = int(port_env) if port_env.isdigit() else 0
+        if self.mcp_port == 0:
+            self.mcp_port = _find_free_port(self.mcp_host)
+
+        self.server_env = _build_server_env(self.env_path)
+        self.server_env["MCP_TRANSPORT"] = "sse"
+        self.server_env["MCP_HOST"] = self.mcp_host
+        self.server_env["MCP_PORT"] = str(self.mcp_port)
+        self.server_env["MCP_LOG_LEVEL"] = os.getenv("MCP_LOG_LEVEL", "DEBUG")
+
+        self.server_log_file = tempfile.NamedTemporaryFile(
+            mode="w+", encoding="utf-8", delete=False
+        )
+        self.server_process = subprocess.Popen(
+            [sys.executable, "main.py"],
+            cwd=str(self.repo_root),
+            env=self.server_env,
+            stdout=self.server_log_file,
+            stderr=self.server_log_file,
+        )
+        try:
+            await _wait_for_port(
+                self.mcp_host, self.mcp_port, self.TEST_TIMEOUT_SECONDS
+            )
+        except TimeoutError as exc:
+            self.server_process.terminate()
+            raise AssertionError(str(exc)) from exc
+
+    async def asyncTearDown(self) -> None:
+        if self.server_process.poll() is None:
+            self.server_process.terminate()
+            try:
+                self.server_process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                self.server_process.kill()
+        self.server_log_file.flush()
+        self.server_log_file.close()
+
+    def _read_server_log_tail(self, max_lines: int = 40) -> str:
+        try:
+            with open(self.server_log_file.name, "r", encoding="utf-8") as log:
+                lines = log.read().splitlines()
+            tail = lines[-max_lines:]
+            return "\n".join(tail)
+        except OSError:
+            return "(server log unavailable)"
 
     async def _with_session(self, callback):
-        server = mcp_stdio.StdioServerParameters(
-            command=sys.executable,
-            args=["main.py"],
-            env=self.server_env,
-            cwd=str(self.repo_root),
-        )
-        async with mcp_stdio.stdio_client(server) as (read_stream, write_stream):
-            session = mcp.ClientSession(read_stream, write_stream)
-            await session.initialize()
-            return await callback(session)
+        async def run_session():
+            url = f"http://{self.mcp_host}:{self.mcp_port}/sse"
+            async with mcp_sse.sse_client(
+                url, timeout=5, sse_read_timeout=self.TEST_TIMEOUT_SECONDS
+            ) as (read_stream, write_stream):
+                async with mcp.ClientSession(read_stream, write_stream) as session:
+                    await session.initialize()
+                    return await callback(session)
+
+        try:
+            return await asyncio.wait_for(
+                run_session(), timeout=self.TEST_TIMEOUT_SECONDS
+            )
+        except asyncio.TimeoutError:
+            log_tail = self._read_server_log_tail()
+            self.fail(
+                "Timed out waiting for MCP response after "
+                f"{self.TEST_TIMEOUT_SECONDS:.1f}s.\n"
+                f"Server log: {self.server_log_file.name}\n{log_tail}"
+            )
 
     async def test_list_tools_includes_core_tools(self) -> None:
         async def run(session: mcp.ClientSession) -> list[str]:
-            tools = await session.list_tools()
+            tools_result = await session.list_tools()
+            if isinstance(tools_result, list):
+                tools = tools_result
+            else:
+                tools = getattr(tools_result, "tools", [])
             names: list[str] = []
             for tool in tools:
                 if isinstance(tool, dict):
