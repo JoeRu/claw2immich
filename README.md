@@ -28,51 +28,6 @@ Workflow (manual for now):
 python main.py
 ```
 
-## Configuration
-Set these environment variables before running the server:
-- `IMMICH_BASE_URL` (default: `http://localhost:2283`)
-- `IMMICH_API_KEY` or `IMMICH_API_TOKEN` (required for authenticated tools)
-
-## MCP tools (current)
-Public:
-- `openapi_summary`
-- `list_openapi_paths`
-- `ping_server`
-- `get_server_info`
-- `get_server_version`
-
-Authenticated:
-- `get_current_user`
-- `list_assets`
-- `get_asset`
-- `list_albums`
-- `get_album`
-- `list_libraries`
-- `get_library`
-
-Example (authenticated):
-```bash
-export IMMICH_BASE_URL="http://localhost:2283"
-export IMMICH_API_KEY="your-api-key"
-python main.py
-```
-
-## Docker
-Build and run with Docker Compose:
-```bash
-docker compose up --build
-```
-
-Environment variables (optional):
-- `IMMICH_BASE_URL`
-- `IMMICH_API_KEY`
-- `IMMICH_API_TOKEN`
-- `MCP_PORT` (default: 8765)
-
-Note: The MCP server uses stdio transport, so the exposed port is reserved for future network transports.
-
 ## Test (placeholder)
-Install dependencies and run:
-```bash
-pytest
-```
+No test runner configured yet.
+Project to implement a MCP Server for Immich
