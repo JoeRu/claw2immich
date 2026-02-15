@@ -202,8 +202,6 @@ class BaseMCPClientTests(unittest.IsolatedAsyncioTestCase):
 
         tool_names = await self._with_session(run)
         expected = {
-            "openapi_summary",
-            "list_openapi_paths",
             "ping_server",
             "get_server_info",
             "get_server_version",

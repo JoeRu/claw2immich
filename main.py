@@ -389,8 +389,8 @@ def tool_access_report() -> dict[str, Any]:
     """Describe which tools are available based on API key permissions."""
     capabilities = _discover_capabilities()
     allowed_tools = [
-        "openapi_summary",
-        "list_openapi_paths",
+#        "openapi_summary",
+#        "list_openapi_paths",
         "ping_server",
         "get_server_info",
         "get_server_version",
@@ -418,8 +418,8 @@ def write_capability_report() -> dict[str, str | bool]:
 
 def _register_tools(capabilities: dict[str, dict[str, str | bool]]) -> None:
     for tool_func in (
-        openapi_summary,
-        list_openapi_paths,
+        # openapi_summary,
+        # list_openapi_paths,
         ping_server,
         get_server_info,
         get_server_version,

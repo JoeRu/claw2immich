@@ -53,6 +53,42 @@
         </files>
       </r>
     </item>
+    <item id="9" type="refactoring" status="DONE" priority="MEDIUM" complexity="S" security="false">
+      <title>Stop exposing OpenAPI summary/path tools</title>
+      <branch>refactoring/item-9-stop-exposing-openapi-summary-path-tools</branch>
+      <justification>Remove OpenAPI summary/path listing tools when they are not needed for MCP usage.</justification>
+      <depends-on></depends-on>
+
+      <tasks>
+        <task id="9.1">Disable registration of the openapi_summary and list_openapi_paths tools.</task>
+        <task id="9.2">Confirm tool access reporting and tests no longer expect the OpenAPI summary/path tools.</task>
+      </tasks>
+
+      <verification>
+        <manual-steps>
+          <step order="1">Run MCP client tests and confirm the OpenAPI summary/path tools are not listed.</step>
+        </manual-steps>
+      </verification>
+
+      <impact-check>
+        <affected-items>
+          <item-ref id="1">Implement MCP server for Immich REST API</item-ref>
+          <item-ref id="2">Filter MCP tools by API key permissions</item-ref>
+          <item-ref id="8">Expose Immich OpenAPI endpoints as MCP tools with permission filtering</item-ref>
+        </affected-items>
+        <notes>Item 8 is not mapped in overview completed-features; ensure coverage remains documented.</notes>
+      </impact-check>
+      <r>
+        <outcome>DONE</outcome>
+        <observations>Removed OpenAPI summary/path tools from MCP registration and updated tests to match; unittest discovery passed (10 tests, 2 skipped).</observations>
+        <lessons-learned>Keep core tool expectations aligned with the registered tool set to avoid false test failures.</lessons-learned>
+        <files>
+          <file>main.py</file>
+          <file>tests/test_mcp_client.py</file>
+          <file>ai-docs/overview-features-bugs.xml</file>
+        </files>
+      </r>
+    </item>
   </items>
 
   <archive>
@@ -336,5 +372,7 @@
     <entry date="2026-02-15">Update scan: verified architecture, dependencies, and completed features with no new items.</entry>
     <entry date="2026-02-15">Added feature item 8: Expose Immich OpenAPI endpoints as MCP tools with permission filtering.</entry>
     <entry date="2026-02-15">Items 8 implemented. Generated OpenAPI MCP tools with permission-based filtering and tests.</entry>
+    <entry date="2026-02-15">Added refactor item 9: Stop exposing OpenAPI summary/path tools.</entry>
+    <entry date="2026-02-15">Items 9 implemented. Disabled OpenAPI summary/path tool exposure and updated MCP client tests.</entry>
   </changelog>
 </overview-features-bugs>
