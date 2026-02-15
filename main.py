@@ -67,6 +67,33 @@ def _request(
         return {"error": "Configuration error", "detail": str(exc)}
 
 
+def _probe(
+    method: str,
+    path: str,
+    *,
+    params: dict[str, Any] | None = None,
+    json_body: Any | None = None,
+    require_auth: bool = False,
+) -> dict[str, Any]:
+    try:
+        config = _get_config()
+        url = f"{config['base_url']}{path}"
+        headers = _build_headers(config, require_auth)
+        with httpx.Client(timeout=DEFAULT_TIMEOUT) as client:
+            response = client.request(
+                method, url, params=params, json=json_body, headers=headers
+            )
+        return {
+            "ok": response.status_code < 400,
+            "status_code": response.status_code,
+            "detail": response.text,
+        }
+    except httpx.RequestError as exc:
+        return {"ok": False, "error": "Network error", "detail": str(exc)}
+    except ValueError as exc:
+        return {"ok": False, "error": "Configuration error", "detail": str(exc)}
+
+
 @lru_cache
 def _fetch_openapi_spec() -> dict[str, Any]:
     with httpx.Client(timeout=DEFAULT_TIMEOUT) as client:
@@ -75,7 +102,82 @@ def _fetch_openapi_spec() -> dict[str, Any]:
     return response.json()
 
 
-@mcp.tool()
+@lru_cache
+def _discover_capabilities() -> dict[str, dict[str, str | bool]]:
+    capabilities: dict[str, dict[str, str | bool]] = {
+        "get_current_user": {"allowed": False, "reason": "Not checked"}
+    }
+    config = _get_config()
+    if not (config["api_key"] or config["api_token"]):
+        capabilities["get_current_user"]["reason"] = (
+            "Missing IMMICH_API_KEY or IMMICH_API_TOKEN"
+        )
+        return capabilities
+
+    probe = _probe("GET", "/api/users/me", require_auth=True)
+    if probe.get("ok"):
+        capabilities["get_current_user"]["allowed"] = True
+        capabilities["get_current_user"]["reason"] = "Allowed"
+        return capabilities
+
+    status_code = probe.get("status_code")
+    if status_code in (401, 403):
+        capabilities["get_current_user"]["reason"] = (
+            "API key/token lacks permission for /api/users/me"
+        )
+        return capabilities
+
+    error = probe.get("error")
+    if error:
+        capabilities["get_current_user"]["reason"] = (
+            f"Capability check failed: {error}"
+        )
+        return capabilities
+
+    capabilities["get_current_user"]["reason"] = (
+        "Immich server error during capability check"
+    )
+    return capabilities
+
+
+@lru_cache
+def _discover_write_capability() -> dict[str, str | bool]:
+    method = os.getenv("IMMICH_WRITE_PROBE_METHOD", "POST").strip().upper()
+    path = os.getenv("IMMICH_WRITE_PROBE_PATH", "").strip()
+    if not path:
+        return {
+            "configured": False,
+            "allowed": False,
+            "reason": "IMMICH_WRITE_PROBE_PATH not set",
+        }
+
+    probe = _probe(method, path, require_auth=True)
+    if probe.get("ok"):
+        return {"configured": True, "allowed": True, "reason": "Allowed"}
+
+    status_code = probe.get("status_code")
+    if status_code in (401, 403):
+        return {
+            "configured": True,
+            "allowed": False,
+            "reason": f"API key/token lacks permission for {method} {path}",
+        }
+
+    error = probe.get("error")
+    if error:
+        return {
+            "configured": True,
+            "allowed": False,
+            "reason": f"Capability check failed: {error}",
+        }
+
+    return {
+        "configured": True,
+        "allowed": False,
+        "reason": "Immich server error during capability check",
+    }
+
+
 def openapi_summary() -> dict[str, Any]:
     """Return OpenAPI title, version, and path count."""
     spec = _fetch_openapi_spec()
@@ -88,7 +190,6 @@ def openapi_summary() -> dict[str, Any]:
     }
 
 
-@mcp.tool()
 def list_openapi_paths(limit: int = 20) -> list[str]:
     """List OpenAPI method/path entries (limited)."""
     spec = _fetch_openapi_spec()
@@ -102,31 +203,73 @@ def list_openapi_paths(limit: int = 20) -> list[str]:
     return entries
 
 
-@mcp.tool()
 def ping_server() -> Any:
     """Check whether the Immich server is reachable."""
     return _request("GET", "/api/server/ping")
 
 
-@mcp.tool()
 def get_server_info() -> Any:
     """Fetch public server info."""
     return _request("GET", "/api/server-info")
 
 
-@mcp.tool()
 def get_server_version() -> Any:
     """Fetch Immich server version information."""
     return _request("GET", "/api/server/version")
 
 
-@mcp.tool()
 def get_current_user() -> Any:
     """Fetch the current user (requires API key or token)."""
     return _request("GET", "/api/users/me", require_auth=True)
 
 
+def tool_access_report() -> dict[str, Any]:
+    """Describe which tools are available based on API key permissions."""
+    capabilities = _discover_capabilities()
+    allowed_tools = [
+        "openapi_summary",
+        "list_openapi_paths",
+        "ping_server",
+        "get_server_info",
+        "get_server_version",
+        "tool_access_report",
+        "write_capability_report",
+    ]
+    blocked_tools: list[dict[str, str]] = []
+    for tool_name, info in capabilities.items():
+        if info.get("allowed"):
+            allowed_tools.append(tool_name)
+        else:
+            blocked_tools.append(
+                {"tool": tool_name, "reason": str(info.get("reason"))}
+            )
+    return {"allowed_tools": allowed_tools, "blocked_tools": blocked_tools}
+
+
+def write_capability_report() -> dict[str, str | bool]:
+    """Report optional write capability probe results."""
+    return _discover_write_capability()
+
+
+def _register_tools(capabilities: dict[str, dict[str, str | bool]]) -> None:
+    for tool_func in (
+        openapi_summary,
+        list_openapi_paths,
+        ping_server,
+        get_server_info,
+        get_server_version,
+        tool_access_report,
+        write_capability_report,
+    ):
+        mcp.tool()(tool_func)
+
+    if capabilities.get("get_current_user", {}).get("allowed"):
+        mcp.tool()(get_current_user)
+
+
 def main() -> None:
+    capabilities = _discover_capabilities()
+    _register_tools(capabilities)
     mcp.run(transport="stdio")
 
 

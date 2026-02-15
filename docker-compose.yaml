@@ -1,0 +1,12 @@
+services:
+  mcp:
+    build: .
+    image: claw2immich:local
+    environment:
+      IMMICH_BASE_URL: ${IMMICH_BASE_URL:-http://host.docker.internal:2283}
+      IMMICH_API_KEY: ${IMMICH_API_KEY:-}
+      IMMICH_API_TOKEN: ${IMMICH_API_TOKEN:-}
+      IMMICH_WRITE_PROBE_PATH: ${IMMICH_WRITE_PROBE_PATH:-}
+      IMMICH_WRITE_PROBE_METHOD: ${IMMICH_WRITE_PROBE_METHOD:-POST}
+    stdin_open: true
+    tty: true

@@ -42,6 +42,154 @@
         </files>
       </r>
     </item>
+    <item id="2" type="feature" status="DONE" priority="MEDIUM" complexity="M" security="false">
+      <title>Filter MCP tools by API key permissions</title>
+      <branch>feature/item-2-filter-mcp-tools-by-api-key-permissions</branch>
+      <justification>Limit exposed MCP tools to actions permitted by the Immich API key or token to avoid authorization errors and reduce accidental misuse.</justification>
+      <depends-on></depends-on>
+
+      <tasks>
+        <task id="2.1">Identify Immich capability sources (user info, role, or permissions) and decide how to map them to tool access.</task>
+        <task id="2.2">Add a capability discovery step in the MCP server startup or per-request path.</task>
+        <task id="2.3">Filter tool exposure based on discovered capabilities and provide a clear user-facing reason when a tool is unavailable.</task>
+        <task id="2.4">Document required permissions and how to validate them with the Immich API.</task>
+      </tasks>
+
+      <verification>
+        <manual-steps>
+          <step order="1">Start the MCP server with a read-only API key and confirm only read-safe tools are listed.</step>
+          <step order="2">Start the MCP server with a full-access token and confirm all tools are listed.</step>
+        </manual-steps>
+      </verification>
+
+      <impact-check>
+        <affected-items>
+          <item-ref id="1">Implement MCP server for Immich REST API</item-ref>
+        </affected-items>
+        <notes>Item 1 has no completeness or test-coverage metadata; verify behavior manually after capability filtering is introduced.</notes>
+      </impact-check>
+      <r>
+        <outcome>DONE</outcome>
+        <observations>Added capability discovery and conditional tool registration; provided a tool access report for visibility into blocked tools.</observations>
+        <lessons-learned>Capability checks should be cached to avoid repeated permission probes.</lessons-learned>
+        <files>
+          <file>main.py</file>
+          <file>ai-docs/overview-features-bugs.xml</file>
+        </files>
+      </r>
+    </item>
+    <item id="3" type="feature" status="DONE" priority="MEDIUM" complexity="M" security="false">
+      <title>Add integration test using .env_test credentials</title>
+      <branch>feature/item-3-add-integration-test-using-env-test-credentials</branch>
+      <justification>Validate behavior with restricted read-only credentials and ensure tool exposure and calls align with allowed permissions.</justification>
+      <depends-on></depends-on>
+
+      <tasks>
+        <task id="3.1">Define an integration test harness that loads .env_test and targets a running Immich instance.</task>
+        <task id="3.2">Add a test case that verifies restricted credentials only expose read-safe tools.</task>
+        <task id="3.3">Add a test case that confirms privileged credentials expose additional tools.</task>
+        <task id="3.4">Document how to run the integration test and required environment setup.</task>
+      </tasks>
+
+      <verification>
+        <manual-steps>
+          <step order="1">Run the integration tests with .env_test and confirm blocked tools are reported as unavailable.</step>
+          <step order="2">Run the integration tests with full credentials and confirm all tools are available.</step>
+        </manual-steps>
+      </verification>
+
+      <impact-check>
+        <affected-items>
+          <item-ref id="1">Implement MCP server for Immich REST API</item-ref>
+          <item-ref id="2">Filter MCP tools by API key permissions</item-ref>
+        </affected-items>
+        <notes>Items 1 and 2 have no completeness or test-coverage metadata; integration tests will reduce manual verification risk.</notes>
+      </impact-check>
+      <r>
+        <outcome>DONE</outcome>
+        <observations>Added integration tests that load env files and assert tool exposure matches Immich permission probes.</observations>
+        <lessons-learned>Use unittest discovery for tests stored under the tests/ directory.</lessons-learned>
+        <files>
+          <file>tests/test_integration_permissions.py</file>
+          <file>README.md</file>
+          <file>ai-docs/overview-features-bugs.xml</file>
+        </files>
+      </r>
+    </item>
+    <item id="4" type="refactoring" status="DONE" priority="MEDIUM" complexity="S" security="false">
+      <title>Update README to reflect current project usage and status</title>
+      <branch>refactoring/item-4-update-readme-to-reflect-current-project-usage-and-status</branch>
+      <justification>Keep project documentation accurate so users can run and test the current MCP server and understand its status.</justification>
+      <depends-on></depends-on>
+
+      <tasks>
+        <task id="4.1">Review current README content against implemented features and tools.</task>
+        <task id="4.2">Document current usage, configuration, and available tools.</task>
+        <task id="4.3">Update test instructions to reflect integration tests and env files.</task>
+      </tasks>
+
+      <verification>
+        <manual-steps>
+          <step order="1">Review README to confirm it matches the implemented MCP tool set and configuration.</step>
+        </manual-steps>
+      </verification>
+
+      <impact-check>
+        <affected-items>
+          <item-ref id="1">Implement MCP server for Immich REST API</item-ref>
+          <item-ref id="2">Filter MCP tools by API key permissions</item-ref>
+          <item-ref id="3">Add integration test using .env_test credentials</item-ref>
+        </affected-items>
+        <notes>Items 1-3 lack completeness/test-coverage metadata; README updates should align with current behavior to avoid confusion.</notes>
+      </impact-check>
+      <r>
+        <outcome>DONE</outcome>
+        <observations>Updated README to list current tools, configuration, and integration test setup aligned with the implemented MCP server.</observations>
+        <lessons-learned>Keeping a concise tool list in the README reduces confusion when permissions gate tool exposure.</lessons-learned>
+        <files>
+          <file>README.md</file>
+          <file>ai-docs/overview-features-bugs.xml</file>
+        </files>
+      </r>
+    </item>
+    <item id="5" type="feature" status="DONE" priority="MEDIUM" complexity="M" security="false">
+      <title>Add Dockerfile and docker-compose for local usage</title>
+      <branch>feature/item-5-add-dockerfile-and-docker-compose-for-local-usage</branch>
+      <justification>Provide containerized setup for running the MCP server with consistent dependencies.</justification>
+      <depends-on></depends-on>
+
+      <tasks>
+        <task id="5.1">Create a Dockerfile that installs dependencies and runs the MCP server.</task>
+        <task id="5.2">Add a docker-compose.yaml with environment configuration for Immich access.</task>
+        <task id="5.3">Document container usage and required environment variables.</task>
+      </tasks>
+
+      <verification>
+        <manual-steps>
+          <step order="1">Build the container image and start it with docker-compose.</step>
+          <step order="2">Verify the MCP server starts and can ping the Immich server.</step>
+        </manual-steps>
+      </verification>
+
+      <impact-check>
+        <affected-items>
+          <item-ref id="1">Implement MCP server for Immich REST API</item-ref>
+        </affected-items>
+        <notes>Item 1 lacks completeness/test-coverage metadata; container usage should be validated manually.</notes>
+      </impact-check>
+      <r>
+        <outcome>DONE</outcome>
+        <observations>Added Dockerfile, docker-compose configuration, and a .dockerignore to keep secrets out of images.</observations>
+        <lessons-learned>Compose defaults for host networking simplify local Immich access on Windows.</lessons-learned>
+        <files>
+          <file>Dockerfile</file>
+          <file>docker-compose.yaml</file>
+          <file>.dockerignore</file>
+          <file>README.md</file>
+          <file>ai-docs/overview-features-bugs.xml</file>
+        </files>
+      </r>
+    </item>
   </items>
 
   <archive>
@@ -51,5 +199,13 @@
     <entry date="2026-02-15">Added feature item 1: Implement MCP server for Immich REST API.</entry>
     <entry date="2026-02-15">Item 1 approved with branch feature/item-1-implement-mcp-server-for-immich.</entry>
     <entry date="2026-02-15">Items 1 implemented. Added Immich MCP tools, OpenAPI ingestion, and config-driven HTTP handling.</entry>
+    <entry date="2026-02-15">Added feature item 2: Filter MCP tools by API key permissions.</entry>
+    <entry date="2026-02-15">Items 2 implemented. Added capability discovery, tool access reporting, and conditional tool registration.</entry>
+    <entry date="2026-02-15">Added feature item 3: Add integration test using .env_test credentials.</entry>
+    <entry date="2026-02-15">Items 3 implemented. Added integration tests for credential-based tool exposure and documentation.</entry>
+    <entry date="2026-02-15">Added refactor item 4: Update README to reflect current project usage and status.</entry>
+    <entry date="2026-02-15">Added feature item 5: Add Dockerfile and docker-compose for local usage.</entry>
+    <entry date="2026-02-15">Items 5 implemented. Added Dockerfile, docker-compose configuration, and documentation.</entry>
+    <entry date="2026-02-15">Items 4 implemented. Updated README with current usage, tools, and test guidance.</entry>
   </changelog>
 </overview-features-bugs>
