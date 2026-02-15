@@ -67,6 +67,21 @@ def _request(
         return {"error": "Configuration error", "detail": str(exc)}
 
 
+def _pagination_params(
+    page: int | None = None,
+    size: int | None = None,
+    order: str | None = None,
+) -> dict[str, Any] | None:
+    params: dict[str, Any] = {}
+    if page is not None:
+        params["page"] = page
+    if size is not None:
+        params["size"] = size
+    if order:
+        params["order"] = order
+    return params or None
+
+
 @lru_cache
 def _fetch_openapi_spec() -> dict[str, Any]:
     with httpx.Client(timeout=DEFAULT_TIMEOUT) as client:
@@ -124,6 +139,52 @@ def get_server_version() -> Any:
 def get_current_user() -> Any:
     """Fetch the current user (requires API key or token)."""
     return _request("GET", "/api/users/me", require_auth=True)
+
+
+@mcp.tool()
+def list_assets(
+    page: int | None = None,
+    size: int | None = None,
+    order: str | None = None,
+) -> Any:
+    """List assets with optional pagination (requires API key or token)."""
+    params = _pagination_params(page=page, size=size, order=order)
+    return _request("GET", "/api/assets", params=params, require_auth=True)
+
+
+@mcp.tool()
+def get_asset(asset_id: str) -> Any:
+    """Fetch a single asset by ID (requires API key or token)."""
+    return _request("GET", f"/api/assets/{asset_id}", require_auth=True)
+
+
+@mcp.tool()
+def list_albums(
+    page: int | None = None,
+    size: int | None = None,
+    order: str | None = None,
+) -> Any:
+    """List albums with optional pagination (requires API key or token)."""
+    params = _pagination_params(page=page, size=size, order=order)
+    return _request("GET", "/api/albums", params=params, require_auth=True)
+
+
+@mcp.tool()
+def get_album(album_id: str) -> Any:
+    """Fetch a single album by ID (requires API key or token)."""
+    return _request("GET", f"/api/albums/{album_id}", require_auth=True)
+
+
+@mcp.tool()
+def list_libraries() -> Any:
+    """List libraries (requires API key or token)."""
+    return _request("GET", "/api/libraries", require_auth=True)
+
+
+@mcp.tool()
+def get_library(library_id: str) -> Any:
+    """Fetch a single library by ID (requires API key or token)."""
+    return _request("GET", f"/api/libraries/{library_id}", require_auth=True)
 
 
 def main() -> None:

@@ -6,7 +6,57 @@
   </metadata>
 
   <items>
-    <item id="1" type="feature" status="DONE" priority="MEDIUM" complexity="L" security="true">
+    <item id="5" type="refactoring" status="PENDING" priority="MEDIUM" complexity="M" ref-feature="CF1">
+      <title>[REF] Immich MCP server tools - broaden test coverage</title>
+      <justification>Feature CF1 has test-coverage=PARTIAL. Expand tests to cover more tools and error handling.</justification>
+      <depends-on></depends-on>
+
+      <tasks>
+        <task id="5.1">Add unit tests for remaining MCP tools (server info/version, albums, libraries, asset by id)</task>
+        <task id="5.2">Add tests for HTTP error and network error branches</task>
+        <task id="5.3">Review coverage gaps and update tests to reach core behavior</task>
+      </tasks>
+
+      <verification>
+        <tests>
+          <test type="unit">
+            <file>tests/test_main.py</file>
+            <description>Expanded unit tests for MCP tool coverage and error handling</description>
+            <assertions>Tool routing and error branches are exercised</assertions>
+          </test>
+        </tests>
+      </verification>
+
+      <r>
+        <outcome></outcome>
+        <files><file></file></files>
+      </r>
+    </item>
+    <item id="6" type="refactoring" status="PENDING" priority="LOW" complexity="S" ref-feature="CF2">
+      <title>[REF] Docker packaging - add smoke validation</title>
+      <justification>Feature CF2 has test-coverage=NONE. Add a minimal smoke check to validate container startup.</justification>
+      <depends-on></depends-on>
+
+      <tasks>
+        <task id="6.1">Add a simple container smoke test or scripted check for docker compose startup</task>
+        <task id="6.2">Document the smoke check in README</task>
+      </tasks>
+
+      <verification>
+        <manual-steps>
+          <step order="1">Run the smoke check and confirm container starts without errors</step>
+        </manual-steps>
+      </verification>
+
+      <r>
+        <outcome></outcome>
+        <files><file></file></files>
+      </r>
+    </item>
+  </items>
+
+  <archive>
+    <item id="1" type="feature" status="DONE" priority="MEDIUM" complexity="L" security="true" archived="2026-02-15">
       <title>Implement MCP server for Immich REST API</title>
       <branch>feature/item-1-implement-mcp-server-for-immich</branch>
       <justification>Expose Immich endpoints via MCP using the OpenAPI spec as the source of truth.</justification>
@@ -42,14 +92,112 @@
         </files>
       </r>
     </item>
-  </items>
+    <item id="2" type="feature" status="DONE" priority="MEDIUM" complexity="L" archived="2026-02-15">
+      <title>Adapt Immich REST API features to MCP tools</title>
+      <branch>feature/item-2-adapt-immich-rest-api-features-to-mcp-tools</branch>
+      <justification>Expand MCP tool coverage to align with core Immich REST API features.</justification>
+      <depends-on>1</depends-on>
 
-  <archive>
+      <tasks>
+        <task id="2.1">Review the OpenAPI spec and select the next set of core endpoints to expose</task>
+        <task id="2.2">Add MCP tools for additional read-only endpoints (e.g., assets, albums, libraries)</task>
+        <task id="2.3">Support common query parameters (pagination, filters, sorting) where applicable</task>
+        <task id="2.4">Document new tools and example usage in README</task>
+      </tasks>
+
+      <verification>
+        <manual-steps>
+          <step order="1">Start the MCP server and verify the new tools are listed</step>
+          <step order="2">Invoke at least one newly added read-only tool and confirm the response shape</step>
+        </manual-steps>
+      </verification>
+
+      <r>
+        <outcome>DONE</outcome>
+        <observations>Added read-only MCP tools for assets, albums, and libraries with pagination support, plus README documentation.</observations>
+        <lessons-learned>Keep pagination parameters optional to match varied Immich endpoint behavior.</lessons-learned>
+        <files>
+          <file>main.py</file>
+          <file>README.md</file>
+          <file>ai-docs/overview-features-bugs.xml</file>
+        </files>
+      </r>
+    </item>
+    <item id="3" type="feature" status="DONE" priority="MEDIUM" complexity="M" archived="2026-02-15">
+      <title>Add Docker image and docker-compose setup</title>
+      <branch>feature/item-3-add-docker-image-and-docker-compose-setup</branch>
+      <justification>Provide a containerized workflow to build and run the MCP server with a mapped port.</justification>
+      <depends-on></depends-on>
+
+      <tasks>
+        <task id="3.1">Create a Dockerfile that installs dependencies and runs the MCP server</task>
+        <task id="3.2">Add docker-compose.yml that builds the image and exposes a configurable port</task>
+        <task id="3.3">Document container usage and environment variables in README</task>
+      </tasks>
+
+      <verification>
+        <manual-steps>
+          <step order="1">Build the image with docker compose</step>
+          <step order="2">Start the container and verify the port is published</step>
+        </manual-steps>
+      </verification>
+
+      <r>
+        <outcome>DONE</outcome>
+        <observations>Added Dockerfile and docker-compose setup with a configurable port and documented usage.</observations>
+        <lessons-learned>Document stdio transport behavior to avoid confusion about exposed ports.</lessons-learned>
+        <files>
+          <file>Dockerfile</file>
+          <file>docker-compose.yml</file>
+          <file>README.md</file>
+          <file>ai-docs/overview-features-bugs.xml</file>
+        </files>
+      </r>
+    </item>
+    <item id="4" type="feature" status="DONE" priority="MEDIUM" complexity="M" archived="2026-02-15">
+      <title>Implement unit-test environment for the MCP server</title>
+      <branch>feature/item-4-implement-unit-test-environment-for-the-mcp-server</branch>
+      <justification>Enable repeatable testing of MCP tools and HTTP interactions to reduce regressions.</justification>
+      <depends-on></depends-on>
+
+      <tasks>
+        <task id="4.1">Add a test runner and configuration (pytest) to the project</task>
+        <task id="4.2">Introduce fixtures for environment configuration and HTTP mocking</task>
+        <task id="4.3">Add initial unit tests for core MCP tools</task>
+        <task id="4.4">Document how to run tests locally</task>
+      </tasks>
+
+      <verification>
+        <manual-steps>
+          <step order="1">Run the test suite and confirm a green result</step>
+        </manual-steps>
+      </verification>
+
+      <r>
+        <outcome>DONE</outcome>
+        <observations>Added pytest, fixtures via monkeypatching, and initial unit tests for config, pagination, and tool wiring.</observations>
+        <lessons-learned>Mocking the OpenAPI fetch and request layer keeps tests fast and offline.</lessons-learned>
+        <files>
+          <file>pyproject.toml</file>
+          <file>tests/test_main.py</file>
+          <file>README.md</file>
+          <file>ai-docs/overview-features-bugs.xml</file>
+        </files>
+      </r>
+    </item>
   </archive>
 
   <changelog>
     <entry date="2026-02-15">Added feature item 1: Implement MCP server for Immich REST API.</entry>
     <entry date="2026-02-15">Item 1 approved with branch feature/item-1-implement-mcp-server-for-immich.</entry>
     <entry date="2026-02-15">Items 1 implemented. Added Immich MCP tools, OpenAPI ingestion, and config-driven HTTP handling.</entry>
+    <entry date="2026-02-15">Added feature item 2: Adapt Immich REST API features to MCP tools.</entry>
+    <entry date="2026-02-15">Items 2 implemented. Added read-only asset, album, and library tools with pagination and documented usage.</entry>
+    <entry date="2026-02-15">Added feature item 3: Add Docker image and docker-compose setup.</entry>
+    <entry date="2026-02-15">Items 3 implemented. Added Dockerfile, docker-compose, and documentation for container usage.</entry>
+    <entry date="2026-02-15">Added feature item 4: Implement unit-test environment for the MCP server.</entry>
+    <entry date="2026-02-15">Items 4 implemented. Added pytest setup, unit tests, and test documentation.</entry>
+    <entry date="2026-02-15">Update: recorded completed features in overview.xml and created [REF] items 5, 6 for test coverage gaps.</entry>
+    <entry date="2026-02-15">Archive: moved items 1-4 to archive and recorded completed features in overview.xml.</entry>
   </changelog>
 </overview-features-bugs>

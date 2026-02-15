@@ -8,7 +8,7 @@
   </metadata>
 
   <architecture>
-    <description>Single-file Python entry point; MCP server planned for Immich REST API.</description>
+    <description>Single-file Python entry point; MCP server for Immich REST API with container and test tooling.</description>
     <patterns>
       <pattern>Single-file script (temporary)</pattern>
     </patterns>
@@ -18,6 +18,7 @@
     <external-dependencies>
       <dependency>httpx</dependency>
       <dependency>mcp[cli]</dependency>
+      <dependency>pytest</dependency>
     </external-dependencies>
     <interfaces>
       <inbound>
@@ -37,8 +38,92 @@
   </environments>
 
   <security>
+    <concern>
+      <threat>Immich API credential exposure</threat>
+      <risk>MEDIUM</risk>
+      <vulnerability>API keys or tokens could be logged or transmitted insecurely.</vulnerability>
+      <mitigation>Use environment variables only, avoid logging secrets, and require HTTPS for remote use.</mitigation>
+    </concern>
   </security>
 
   <completed-features>
+    <feature id="CF1" completed="2026-02-15" completeness="FULL" test-coverage="PARTIAL" ref-item="5">
+      <title>Immich MCP server and core tools</title>
+      <description>FastMCP server with config-driven HTTP requests and read-only Immich tools.</description>
+      <files>
+        <file>main.py</file>
+        <file>README.md</file>
+      </files>
+      <test-files>
+        <file>tests/test_main.py</file>
+      </test-files>
+      <dependencies>
+        <depends-on>Immich REST API</depends-on>
+      </dependencies>
+    </feature>
+    <feature id="CF2" completed="2026-02-15" completeness="FULL" test-coverage="NONE" ref-item="6">
+      <title>Docker packaging for the MCP server</title>
+      <description>Dockerfile and docker-compose workflow for containerized runs.</description>
+      <files>
+        <file>Dockerfile</file>
+        <file>docker-compose.yml</file>
+        <file>README.md</file>
+      </files>
+      <dependencies>
+        <depends-on>Docker</depends-on>
+      </dependencies>
+    </feature>
+    <feature id="CF3" completed="2026-02-15" completeness="FULL" test-coverage="TESTED">
+      <title>Unit-test environment</title>
+      <description>Pytest-based unit tests and documentation for running tests.</description>
+      <files>
+        <file>pyproject.toml</file>
+        <file>tests/test_main.py</file>
+        <file>README.md</file>
+      </files>
+      <test-files>
+        <file>tests/test_main.py</file>
+      </test-files>
+      <dependencies>
+        <depends-on>pytest</depends-on>
+      </dependencies>
+    </feature>
+    <feature id="CF-1" completed="2026-02-15" source-item="1">
+      <title>Implement MCP server for Immich REST API</title>
+      <description>Expose Immich endpoints via MCP using the OpenAPI spec as the source of truth.</description>
+      <files>
+        <file>main.py</file>
+        <file>ai-docs/overview-features-bugs.xml</file>
+      </files>
+    </feature>
+    <feature id="CF-2" completed="2026-02-15" source-item="2">
+      <title>Adapt Immich REST API features to MCP tools</title>
+      <description>Expand MCP tool coverage to align with core Immich REST API features.</description>
+      <files>
+        <file>main.py</file>
+        <file>README.md</file>
+        <file>ai-docs/overview-features-bugs.xml</file>
+      </files>
+    </feature>
+    <feature id="CF-3" completed="2026-02-15" source-item="3">
+      <title>Add Docker image and docker-compose setup</title>
+      <description>Provide a containerized workflow to build and run the MCP server with a mapped port.</description>
+      <files>
+        <file>Dockerfile</file>
+        <file>docker-compose.yml</file>
+        <file>README.md</file>
+        <file>ai-docs/overview-features-bugs.xml</file>
+      </files>
+    </feature>
+    <feature id="CF-4" completed="2026-02-15" source-item="4">
+      <title>Implement unit-test environment for the MCP server</title>
+      <description>Enable repeatable testing of MCP tools and HTTP interactions to reduce regressions.</description>
+      <files>
+        <file>pyproject.toml</file>
+        <file>tests/test_main.py</file>
+        <file>README.md</file>
+        <file>ai-docs/overview-features-bugs.xml</file>
+      </files>
+    </feature>
   </completed-features>
 </overview>
