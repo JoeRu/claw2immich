@@ -2,7 +2,7 @@
 <overview-features-bugs>
   <metadata>
     <created>2026-02-15</created>
-    <updated>2026-02-15</updated>
+    <updated>2026-02-16</updated>
   </metadata>
 
   <items>
@@ -85,6 +85,132 @@
         <files>
           <file>main.py</file>
           <file>tests/test_mcp_client.py</file>
+          <file>ai-docs/overview-features-bugs.xml</file>
+        </files>
+      </r>
+    </item>
+    <item id="10" type="refactoring" status="DONE" priority="MEDIUM" complexity="M" security="false">
+      <title>Expose OpenAPI parameter schemas for MCP tools</title>
+      <branch>refactoring/item-10-expose-openapi-parameter-schemas-for-mcp-tools</branch>
+      <justification>Manual testing shows MCP clients cannot discover tool parameters; align tool input schemas with OpenAPI so clients can set and validate parameters.</justification>
+      <depends-on></depends-on>
+
+      <tasks>
+        <task id="10.1">Review MCP Python SDK guidance for tool input schemas and client parameter discovery.</task>
+        <task id="10.2">Audit current FastMCP tool registration for OpenAPI endpoints and map path/query/header/body parameters to explicit input schema.</task>
+        <task id="10.3">Generate per-tool parameter metadata (names, required flags, types, descriptions) from OpenAPI and ensure FastMCP exposes them to clients.</task>
+        <task id="10.4">Update MCP client tests to assert parameter schema availability and validate at least one path/query/body example.</task>
+        <task id="10.5">Document parameter usage patterns for generated tools in README once schema exposure is wired.</task>
+      </tasks>
+
+      <verification>
+        <manual-steps>
+          <step order="1">Run MCP client tests and confirm tool schemas include OpenAPI parameters.</step>
+          <step order="2">Use MCP client to call an endpoint requiring path and query params using schema-derived names.</step>
+        </manual-steps>
+      </verification>
+
+      <impact-check>
+        <affected-items>
+          <item-ref id="1">Implement MCP server for Immich REST API</item-ref>
+          <item-ref id="2">Filter MCP tools by API key permissions</item-ref>
+          <item-ref id="6">Add env-driven MCP server transport configuration</item-ref>
+          <item-ref id="8">Expose Immich OpenAPI endpoints as MCP tools with permission filtering</item-ref>
+        </affected-items>
+        <notes>Item 8 is not mapped in overview completed-features; parameter schema validation is not covered by current tests and should be added.</notes>
+      </impact-check>
+      <r>
+        <outcome>DONE</outcome>
+        <observations>OpenAPI tool generation now exposes explicit parameter fields (prefixed by location) and updated tests validate schema presence with write capability gating.</observations>
+        <lessons-learned>Write tool filtering can hide request-body parameters, so tests should only require body schemas when write probes are enabled.</lessons-learned>
+        <files>
+          <file>main.py</file>
+          <file>tests/test_mcp_client.py</file>
+          <file>README.md</file>
+          <file>ai-docs/overview-features-bugs.xml</file>
+        </files>
+      </r>
+    </item>
+    <item id="11" type="feature" status="DONE" priority="MEDIUM" complexity="M" security="false">
+      <title>Add MCP usage guide with server instructions and workflow examples</title>
+      <branch>feature/item-11-add-mcp-usage-guide-with-server-instructions-and-workflow-examples</branch>
+      <justification>Provide self-documenting guidance so MCP clients and AI agents can discover how to use Immich tools for common workflows.</justification>
+      <depends-on></depends-on>
+
+      <tasks>
+        <task id="11.1">Draft a usage guide covering server instructions, tool metadata, resources, and prompts, including examples for images, people, locations, newest photos, uploads, and album sharing.</task>
+        <task id="11.2">Expose the usage guide via MCP resources and include a stable URI for clients to read.</task>
+        <task id="11.3">Add server-level instructions that summarize how to use the MCP server and point to the usage guide resource.</task>
+        <task id="11.4">Add prompt templates for common workflows to guide AI agents through multi-step actions.</task>
+        <task id="11.5">Update README to describe where clients can find instructions, resources, and prompts.</task>
+      </tasks>
+
+      <verification>
+        <manual-steps>
+          <step order="1">Connect with an MCP client and confirm the server instructions are visible on initialize.</step>
+          <step order="2">List resources and read the usage guide resource to verify contents and examples.</step>
+          <step order="3">List prompts and validate prompt templates for the documented workflows.</step>
+        </manual-steps>
+      </verification>
+
+      <impact-check>
+        <affected-items>
+          <item-ref id="1">Implement MCP server for Immich REST API</item-ref>
+          <item-ref id="8">Expose Immich OpenAPI endpoints as MCP tools with permission filtering</item-ref>
+          <item-ref id="10">Expose OpenAPI parameter schemas for MCP tools</item-ref>
+        </affected-items>
+        <notes>Completed features are fully tested; the new documentation surface should be validated through MCP client manual checks.</notes>
+      </impact-check>
+      <r>
+        <outcome>DONE</outcome>
+        <observations>Added server instructions, a usage guide resource, and workflow prompts to make tool discovery and common tasks easier for MCP clients.</observations>
+        <lessons-learned>Using tool descriptions as selectors keeps examples accurate even when OpenAPI operationIds change.</lessons-learned>
+        <files>
+          <file>main.py</file>
+          <file>docs/usage-guide.md</file>
+          <file>README.md</file>
+          <file>ai-docs/overview-features-bugs.xml</file>
+        </files>
+      </r>
+    </item>
+    <item id="12" type="feature" status="DONE" priority="MEDIUM" complexity="M" security="false">
+      <title>Enrich OpenAPI tool descriptions with parameter summaries and response hints</title>
+      <branch>feature/item-12-enrich-openapi-tool-descriptions-with-parameter-summaries-and-response-hints</branch>
+      <justification>AI agents need concise parameter and response guidance to select tools and construct calls without manual schema inspection.</justification>
+      <depends-on></depends-on>
+
+      <tasks>
+        <task id="12.1">Review Immich endpoint catalog to identify response schema titles and common response shapes for assets, people, locations, uploads, and albums.</task>
+        <task id="12.2">Extend OpenAPI tool description generation to append a short parameter summary (required path/query/body fields) and response schema title.</task>
+        <task id="12.3">Add concise usage examples and output hints to tool descriptions without exceeding typical client display limits.</task>
+        <task id="12.4">Update documentation to explain the enriched description format for AI agents.</task>
+        <task id="12.5">Add tests or checks that validate descriptions include parameter and response hints for representative endpoints.</task>
+      </tasks>
+
+      <verification>
+        <manual-steps>
+          <step order="1">List tools and verify descriptions include required parameter summaries and response schema titles.</step>
+          <step order="2">Validate a few enriched descriptions against the Immich endpoint docs for accuracy.</step>
+        </manual-steps>
+      </verification>
+
+      <impact-check>
+        <affected-items>
+          <item-ref id="8">Expose Immich OpenAPI endpoints as MCP tools with permission filtering</item-ref>
+          <item-ref id="10">Expose OpenAPI parameter schemas for MCP tools</item-ref>
+          <item-ref id="11">Add MCP usage guide with server instructions and workflow examples</item-ref>
+        </affected-items>
+        <notes>Completed features are fully tested; updated descriptions should be validated for accuracy and size to avoid client UI truncation.</notes>
+      </impact-check>
+      <r>
+        <outcome>DONE</outcome>
+        <observations>OpenAPI tool descriptions now include required parameter summaries, short examples, and response schema hints while keeping descriptions capped for client display.</observations>
+        <lessons-learned>Extracting response schema titles and key fields from OpenAPI provides useful guidance without requiring manual per-endpoint curation.</lessons-learned>
+        <files>
+          <file>main.py</file>
+          <file>tests/test_mcp_client.py</file>
+          <file>docs/usage-guide.md</file>
+          <file>README.md</file>
           <file>ai-docs/overview-features-bugs.xml</file>
         </files>
       </r>
@@ -374,5 +500,11 @@
     <entry date="2026-02-15">Items 8 implemented. Generated OpenAPI MCP tools with permission-based filtering and tests.</entry>
     <entry date="2026-02-15">Added refactor item 9: Stop exposing OpenAPI summary/path tools.</entry>
     <entry date="2026-02-15">Items 9 implemented. Disabled OpenAPI summary/path tool exposure and updated MCP client tests.</entry>
+    <entry date="2026-02-16">Added refactor item 10: Expose OpenAPI parameter schemas for MCP tools.</entry>
+    <entry date="2026-02-16">Items 10 implemented. Added OpenAPI parameter schemas, updated MCP client tests, and documented parameter naming.</entry>
+    <entry date="2026-02-16">Added feature item 11: Add MCP usage guide with server instructions and workflow examples.</entry>
+    <entry date="2026-02-16">Items 11 implemented. Added server instructions, usage guide resource, and workflow prompts.</entry>
+    <entry date="2026-02-16">Added feature item 12: Enrich OpenAPI tool descriptions with parameter summaries and response hints.</entry>
+    <entry date="2026-02-16">Items 12 implemented. Enriched tool descriptions with params, examples, response hints, and tests.</entry>
   </changelog>
 </overview-features-bugs>

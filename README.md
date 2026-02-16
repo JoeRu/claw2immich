@@ -8,8 +8,6 @@ claw2immich is a Python MCP (Model Context Protocol) server that exposes selecte
 - Integration tests cover tool listing and permission probes.
 
 ## Available tools
-- `openapi_summary` (OpenAPI title/version/path count)
-- `list_openapi_paths` (limited list of method/path entries)
 - `ping_server`
 - `get_server_info`
 - `get_server_version`
@@ -19,6 +17,25 @@ claw2immich is a Python MCP (Model Context Protocol) server that exposes selecte
 
 All OpenAPI endpoints are exposed as tools named `immich_<operation>` or `immich_<method>_<path>`.
 Tools are filtered based on auth presence, admin-only markers, and write capability probes (set `IMMICH_WRITE_PROBE_PATH` to enable write tools).
+
+OpenAPI tool descriptions include:
+- `params:` summary of required path/query/body fields
+- `example:` short call sketch for required inputs
+- `returns:` response schema title and key fields when available
+
+OpenAPI tool parameters use explicit, prefixed fields so MCP clients can discover what to set:
+- `path_<name>` for path parameters
+- `query_<name>` for query parameters
+- `header_<name>` for header parameters
+- `cookie_<name>` for cookie parameters
+- `body` for JSON request bodies
+
+Legacy fields `path_params`, `query_params`, `headers`, and `json_body` are still accepted for compatibility.
+
+## MCP documentation surfaces
+- Server instructions are sent during initialize. Use them as the short on-ramp and point to the usage guide resource.
+- Resource: `docs://usage-guide` contains a detailed workflow guide with examples.
+- Prompts: workflow templates are available under titles like "Immich: Get image", "Immich: Find person", and "Immich: Share album".
 
 ## Configuration
 Environment variables:

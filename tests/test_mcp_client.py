@@ -59,6 +59,22 @@ def _extract_tool_payload(result: mcp.types.CallToolResult) -> object:
         return text
 
 
+def _extract_tool_input_schema(tool: object) -> dict[str, Any] | None:
+    if isinstance(tool, dict):
+        schema = tool.get("inputSchema") or tool.get("input_schema")
+        return schema if isinstance(schema, dict) else None
+    schema = getattr(tool, "inputSchema", None) or getattr(tool, "input_schema", None)
+    return schema if isinstance(schema, dict) else None
+
+
+def _extract_tool_description(tool: object) -> str | None:
+    if isinstance(tool, dict):
+        description = tool.get("description")
+        return description if isinstance(description, str) else None
+    description = getattr(tool, "description", None)
+    return description if isinstance(description, str) else None
+
+
 def _find_free_port(host: str) -> int:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         sock.bind((host, 0))
@@ -183,6 +199,51 @@ class BaseMCPClientTests(unittest.IsolatedAsyncioTestCase):
                 return entry
         return None
 
+    def _scan_openapi_parameter_presence(self) -> dict[str, bool]:
+        spec = main._fetch_openapi_spec()
+        operations = main._list_openapi_operations(spec)
+        presence = {"path": False, "query": False, "body": False}
+        for entry in operations:
+            operation = entry.get("operation", {})
+            if main._operation_admin_only(operation):
+                continue
+            params = main._merge_parameters(
+                entry.get("path_parameters"),
+                operation.get("parameters"),
+            )
+            for param in params:
+                location = param.get("in")
+                if location in presence:
+                    presence[location] = True
+            if operation.get("requestBody"):
+                presence["body"] = True
+            if all(presence.values()):
+                break
+        return presence
+
+    def _find_openapi_tool_with_required_params(
+        self, tool_names: set[str]
+    ) -> str | None:
+        spec = main._fetch_openapi_spec()
+        operations = main._list_openapi_operations(spec)
+        for entry in operations:
+            operation = entry.get("operation", {})
+            if main._operation_admin_only(operation):
+                continue
+            tool_name = main._tool_name_for_operation(
+                entry["method"], entry["path"], operation
+            )
+            if tool_name not in tool_names:
+                continue
+            param_specs = main._operation_param_specs(entry)
+            body_spec = main._operation_request_body_spec(operation)
+            has_required = any(spec.get("required") for spec in param_specs)
+            if body_spec and body_spec.get("required"):
+                has_required = True
+            if has_required:
+                return tool_name
+        return None
+
     async def test_list_tools_includes_core_tools(self) -> None:
         async def run(session: mcp.ClientSession) -> list[str]:
             tools_result = await session.list_tools()
@@ -250,6 +311,95 @@ class BaseMCPClientTests(unittest.IsolatedAsyncioTestCase):
             self.fail("Expected tool_access_report to return a dict payload")
         self.assertIn("allowed_tools", payload)
         self.assertIn("blocked_tools", payload)
+
+    async def test_openapi_tool_parameter_schema(self) -> None:
+        async def run(session: mcp.ClientSession) -> list[object]:
+            tools_result = await session.list_tools()
+            if isinstance(tools_result, list):
+                return tools_result
+            return list(getattr(tools_result, "tools", []))
+
+        tools = await self._with_session(run)
+        tool_map: dict[str, object] = {}
+        for tool in tools:
+            name = tool.get("name") if isinstance(tool, dict) else getattr(tool, "name", None)
+            if name:
+                tool_map[name] = tool
+
+        openapi_tools = {
+            name: tool for name, tool in tool_map.items() if name.startswith("immich_")
+        }
+        if not openapi_tools:
+            self.skipTest("No OpenAPI tools available to validate parameter schemas")
+
+        presence = self._scan_openapi_parameter_presence()
+        write_capability = self._get_write_capability()
+        if not (write_capability.get("configured") and write_capability.get("allowed")):
+            presence["body"] = False
+        checks = {
+            "path": "path_",
+            "query": "query_",
+            "body": "body",
+        }
+        for key, prefix in checks.items():
+            if not presence.get(key):
+                continue
+            found = False
+            for tool in openapi_tools.values():
+                schema = _extract_tool_input_schema(tool)
+                if not schema:
+                    continue
+                properties = schema.get("properties", {})
+                if not isinstance(properties, dict):
+                    continue
+                if key == "body":
+                    if "body" in properties:
+                        found = True
+                        break
+                else:
+                    if any(name.startswith(prefix) for name in properties.keys()):
+                        found = True
+                        break
+            self.assertTrue(
+                found,
+                f"Expected at least one OpenAPI tool with {key} parameter schema",
+            )
+
+    async def test_openapi_tool_descriptions_enriched(self) -> None:
+        async def run(session: mcp.ClientSession) -> list[object]:
+            tools_result = await session.list_tools()
+            if isinstance(tools_result, list):
+                return tools_result
+            return list(getattr(tools_result, "tools", []))
+
+        tools = await self._with_session(run)
+        tool_map: dict[str, object] = {}
+        for tool in tools:
+            name = tool.get("name") if isinstance(tool, dict) else getattr(tool, "name", None)
+            if name:
+                tool_map[name] = tool
+
+        openapi_tools = {
+            name: tool for name, tool in tool_map.items() if name.startswith("immich_")
+        }
+        if not openapi_tools:
+            self.skipTest("No OpenAPI tools available to validate descriptions")
+
+        descriptions = [
+            _extract_tool_description(tool) for tool in openapi_tools.values()
+        ]
+        self.assertTrue(any(desc and "returns:" in desc for desc in descriptions))
+
+        tool_with_required = self._find_openapi_tool_with_required_params(
+            set(openapi_tools.keys())
+        )
+        if tool_with_required is None:
+            self.skipTest("No OpenAPI tools with required parameters available")
+        description = _extract_tool_description(openapi_tools[tool_with_required])
+        if not description:
+            self.fail("Expected OpenAPI tool description to be populated")
+        self.assertIn("params:", description)
+        self.assertIn("example:", description)
 
     async def test_ping_server(self) -> None:
         async def run(session: mcp.ClientSession) -> object:

@@ -6,6 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 claw2immich is a Python MCP (Model Context Protocol) server that exposes the Immich REST API. It uses FastMCP for server scaffolding and httpx for HTTP requests to the Immich API. The OpenAPI spec from Immich is the source of truth for API shape.
 
+
+
 ## Development Setup
 
 - **Python**: >= 3.12
@@ -15,7 +17,8 @@ claw2immich is a Python MCP (Model Context Protocol) server that exposes the Imm
 - **Test**: `pytest tests/` (integration tests exist in [tests/](tests/))
 
 ## Architecture
-
+- Always check on https://github.com/modelcontextprotocol/python-sdk/blob/main/README.md
+for implementation details of MCP.
 - Single entry point in [main.py](main.py) using `FastMCP("claw2immich")` with stdio transport
 - MCP tools are defined as plain functions registered via `_register_tools()` based on runtime capability discovery
 - `_get_config()` reads `IMMICH_BASE_URL`, `IMMICH_API_KEY`, and `IMMICH_API_TOKEN` from environment variables
@@ -31,7 +34,7 @@ claw2immich is a Python MCP (Model Context Protocol) server that exposes the Imm
 
 ## AI-Assisted Development Workflow
 
-Read [CLAUDE-implementation-plan-chapter.md](CLAUDE-implementation-plan-chapter.md) for details.
+!Read [CLAUDE-implementation-plan-chapter.md](CLAUDE-implementation-plan-chapter.md) for details.
 
 This project uses an XML-based planning system under [ai-docs/](ai-docs/):
 - `overview.xml` — project architecture baseline
