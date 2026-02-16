@@ -6,7 +6,43 @@
   </metadata>
 
   <items>
-    <item id="8" type="feature" status="DONE" priority="MEDIUM" complexity="L" security="true">
+    <item id="14" type="refactoring" status="PENDING" priority="MEDIUM" complexity="M" security="false">
+      <title>Reformat main.py for PEP 8 readability</title>
+      <branch>refactoring/item-14-reformat-main-py-for-pep8-readability</branch>
+      <justification>Improve code readability and maintainability by aligning main.py with PEP 8 style guidance.</justification>
+      <depends-on></depends-on>
+
+      <tasks>
+        <task id="14.1">Normalize import ordering, constants, and spacing to match PEP 8 expectations.</task>
+        <task id="14.2">Wrap long lines and split dense expressions for easier scanning without changing behavior.</task>
+        <task id="14.3">Review MCP tool registration and OpenAPI helpers for readability-focused formatting.</task>
+      </tasks>
+
+      <verification>
+        <manual-steps>
+          <step order="1">Run unit tests with `python -m unittest discover -s tests -v`.</step>
+          <step order="2">Spot-check MCP server startup to confirm tools still register correctly.</step>
+        </manual-steps>
+      </verification>
+
+      <impact-check>
+        <affected-items>
+          <item-ref id="1">Implement MCP server for Immich REST API</item-ref>
+          <item-ref id="2">Filter MCP tools by API key permissions</item-ref>
+          <item-ref id="6">Add env-driven MCP server transport configuration</item-ref>
+          <item-ref id="8">Expose Immich OpenAPI endpoints as MCP tools with permission filtering</item-ref>
+          <item-ref id="10">Expose OpenAPI parameter schemas for MCP tools</item-ref>
+          <item-ref id="11">Add MCP usage guide with server instructions and workflow examples</item-ref>
+          <item-ref id="12">Enrich OpenAPI tool descriptions with parameter summaries and response hints</item-ref>
+          <item-ref id="13">Default write probe to /api/assets POST</item-ref>
+        </affected-items>
+        <notes>Items 8-13 are not mapped in overview completed-features; keep documentation alignment in mind and run existing tests to confirm no behavior changes.</notes>
+      </impact-check>
+    </item>
+  </items>
+
+  <archive>
+    <item id="8" type="feature" status="DONE" priority="MEDIUM" complexity="L" security="true" archived="2026-02-16">
       <title>Expose Immich OpenAPI endpoints as MCP tools with permission filtering</title>
       <branch>feature/item-8-expose-immich-openapi-endpoints-as-mcp-tools-with-permission-filtering</branch>
       <justification>Provide full Immich API coverage via MCP tools while only exposing endpoints permitted by the configured API key/token.</justification>
@@ -53,7 +89,7 @@
         </files>
       </r>
     </item>
-    <item id="9" type="refactoring" status="DONE" priority="MEDIUM" complexity="S" security="false">
+    <item id="9" type="refactoring" status="DONE" priority="MEDIUM" complexity="S" security="false" archived="2026-02-16">
       <title>Stop exposing OpenAPI summary/path tools</title>
       <branch>refactoring/item-9-stop-exposing-openapi-summary-path-tools</branch>
       <justification>Remove OpenAPI summary/path listing tools when they are not needed for MCP usage.</justification>
@@ -89,7 +125,7 @@
         </files>
       </r>
     </item>
-    <item id="10" type="refactoring" status="DONE" priority="MEDIUM" complexity="M" security="false">
+    <item id="10" type="refactoring" status="DONE" priority="MEDIUM" complexity="M" security="false" archived="2026-02-16">
       <title>Expose OpenAPI parameter schemas for MCP tools</title>
       <branch>refactoring/item-10-expose-openapi-parameter-schemas-for-mcp-tools</branch>
       <justification>Manual testing shows MCP clients cannot discover tool parameters; align tool input schemas with OpenAPI so clients can set and validate parameters.</justification>
@@ -131,7 +167,7 @@
         </files>
       </r>
     </item>
-    <item id="11" type="feature" status="DONE" priority="MEDIUM" complexity="M" security="false">
+    <item id="11" type="feature" status="DONE" priority="MEDIUM" complexity="M" security="false" archived="2026-02-16">
       <title>Add MCP usage guide with server instructions and workflow examples</title>
       <branch>feature/item-11-add-mcp-usage-guide-with-server-instructions-and-workflow-examples</branch>
       <justification>Provide self-documenting guidance so MCP clients and AI agents can discover how to use Immich tools for common workflows.</justification>
@@ -173,7 +209,7 @@
         </files>
       </r>
     </item>
-    <item id="12" type="feature" status="DONE" priority="MEDIUM" complexity="M" security="false">
+    <item id="12" type="feature" status="DONE" priority="MEDIUM" complexity="M" security="false" archived="2026-02-16">
       <title>Enrich OpenAPI tool descriptions with parameter summaries and response hints</title>
       <branch>feature/item-12-enrich-openapi-tool-descriptions-with-parameter-summaries-and-response-hints</branch>
       <justification>AI agents need concise parameter and response guidance to select tools and construct calls without manual schema inspection.</justification>
@@ -215,9 +251,135 @@
         </files>
       </r>
     </item>
-  </items>
+    <item id="13" type="feature" status="DONE" priority="MEDIUM" complexity="S" security="false" archived="2026-02-16">
+      <title>Default write probe to /api/assets POST</title>
+      <branch>feature/item-13-default-write-probe-to-api-assets-post</branch>
+      <justification>Provide a sensible default write-capability probe so write tools are enabled when standard Immich upload permissions are granted.</justification>
+      <depends-on></depends-on>
 
-  <archive>
+      <tasks>
+        <task id="13.1">Set `IMMICH_WRITE_PROBE_PATH` default to `/api/assets` when not provided.</task>
+        <task id="13.2">Set `IMMICH_WRITE_PROBE_METHOD` default to `POST` when not provided.</task>
+        <task id="13.3">Update README and usage guide to describe the default probe behavior.</task>
+        <task id="13.4">Add or update tests to ensure the default probe values are applied.</task>
+      </tasks>
+
+      <verification>
+        <manual-steps>
+          <step order="1">Start the MCP server without write probe env vars and confirm write tools are gated by POST /api/assets permission.</step>
+        </manual-steps>
+      </verification>
+
+      <impact-check>
+        <affected-items>
+          <item-ref id="2">Filter MCP tools by API key permissions</item-ref>
+          <item-ref id="8">Expose Immich OpenAPI endpoints as MCP tools with permission filtering</item-ref>
+          <item-ref id="10">Expose OpenAPI parameter schemas for MCP tools</item-ref>
+        </affected-items>
+        <notes>Completed features are fully tested; changing defaults should be validated against read-only credentials.</notes>
+      </impact-check>
+      <r>
+        <outcome>DONE</outcome>
+        <observations>Defaulted the write probe to POST /api/assets, documented the behavior, and added a unit test for default settings.</observations>
+        <lessons-learned>Providing a safe default keeps write-tool exposure conservative while reducing required configuration.</lessons-learned>
+        <files>
+          <file>main.py</file>
+          <file>tests/test_mcp_client.py</file>
+          <file>docs/usage-guide.md</file>
+          <file>README.md</file>
+          <file>ai-docs/overview-features-bugs.xml</file>
+        </files>
+      </r>
+    </item>
+    <item id="15" type="refactoring" status="DONE" priority="MEDIUM" complexity="M" security="false" archived="2026-02-16">
+      <title>Split main.py into modules</title>
+      <branch>refactoring/item-15-split-main-py-into-modules</branch>
+      <justification>Improve maintainability and readability by organizing the single-file entry point into focused modules without changing behavior.</justification>
+      <depends-on></depends-on>
+
+      <tasks>
+        <task id="15.1">Identify logical module boundaries (config, HTTP, OpenAPI helpers, MCP registration).</task>
+        <task id="15.2">Move functions into modules and update imports/exports while preserving behavior.</task>
+        <task id="15.3">Keep the entry point minimal and ensure environment/config handling remains centralized.</task>
+      </tasks>
+
+      <verification>
+        <manual-steps>
+          <step order="1">Run unit tests with `python -m unittest discover -s tests -v`.</step>
+          <step order="2">Start the MCP server and confirm tools still register and execute.</step>
+        </manual-steps>
+      </verification>
+
+      <impact-check>
+        <affected-items>
+          <item-ref id="1">Implement MCP server for Immich REST API</item-ref>
+          <item-ref id="2">Filter MCP tools by API key permissions</item-ref>
+          <item-ref id="6">Add env-driven MCP server transport configuration</item-ref>
+          <item-ref id="8">Expose Immich OpenAPI endpoints as MCP tools with permission filtering</item-ref>
+          <item-ref id="10">Expose OpenAPI parameter schemas for MCP tools</item-ref>
+          <item-ref id="11">Add MCP usage guide with server instructions and workflow examples</item-ref>
+          <item-ref id="12">Enrich OpenAPI tool descriptions with parameter summaries and response hints</item-ref>
+          <item-ref id="13">Default write probe to /api/assets POST</item-ref>
+          <item-ref id="14">Reformat main.py for PEP 8 readability</item-ref>
+        </affected-items>
+        <notes>Items 8-13 are not mapped in overview completed-features; ensure module split keeps behavior intact and run existing tests to validate coverage.</notes>
+      </impact-check>
+      <r>
+        <outcome>DONE</outcome>
+        <observations>Split main.py into a package with focused modules, keeping main.py as a thin entry point while preserving public helper access for tests.</observations>
+        <lessons-learned>Re-exporting key helpers from main.py keeps tests stable during module refactors.</lessons-learned>
+        <files>
+          <file>claw2immich/__init__.py</file>
+          <file>claw2immich/capabilities.py</file>
+          <file>claw2immich/config.py</file>
+          <file>claw2immich/constants.py</file>
+          <file>claw2immich/http_client.py</file>
+          <file>claw2immich/mcp_app.py</file>
+          <file>claw2immich/openapi.py</file>
+          <file>claw2immich/prompts.py</file>
+          <file>claw2immich/tooling.py</file>
+          <file>main.py</file>
+          <file>ai-docs/overview-features-bugs.xml</file>
+        </files>
+      </r>
+    </item>
+    <item id="16" type="bug" status="DONE" priority="HIGH" complexity="M" security="false" archived="2026-02-16">
+      <title>Docker container fails to import claw2immich package</title>
+      <branch>bug/item-16-docker-container-fails-to-import-claw2immich-package</branch>
+      <justification>After splitting main.py into modules, the container fails at startup with ModuleNotFoundError, blocking docker-compose usage.</justification>
+      <depends-on></depends-on>
+
+      <tasks>
+        <task id="16.1">Update Dockerfile and docker-compose configuration so the claw2immich package is available at runtime.</task>
+        <task id="16.2">Validate container entry point and working directory after the module split.</task>
+        <task id="16.3">Confirm docker-compose startup succeeds and the MCP server runs.</task>
+      </tasks>
+
+      <verification>
+        <manual-steps>
+          <step order="1">Run `docker compose up` and confirm the container stays running without ModuleNotFoundError.</step>
+          <step order="2">Check container logs for MCP server startup and tool registration.</step>
+        </manual-steps>
+      </verification>
+
+      <impact-check>
+        <affected-items>
+          <item-ref id="5">Add Dockerfile and docker-compose for local usage</item-ref>
+          <item-ref id="7">Expose MCP ports in docker-compose</item-ref>
+          <item-ref id="15">Split main.py into modules</item-ref>
+        </affected-items>
+        <notes>Items 5 and 7 are complete and tested; container startup must be revalidated after the module split.</notes>
+      </impact-check>
+      <r>
+        <outcome>DONE</outcome>
+        <observations>Added the package and docs to the image and set PYTHONPATH so main.py can import claw2immich during container startup.</observations>
+        <lessons-learned>When refactoring into packages, containers need explicit module paths or installs to avoid import errors.</lessons-learned>
+        <files>
+          <file>Dockerfile</file>
+          <file>ai-docs/overview-features-bugs.xml</file>
+        </files>
+      </r>
+    </item>
     <item id="1" type="feature" status="DONE" priority="MEDIUM" complexity="L" security="true" archived="2026-02-15">
       <title>Implement MCP server for Immich REST API</title>
       <branch>feature/item-1-implement-mcp-server-for-immich</branch>
@@ -506,5 +668,13 @@
     <entry date="2026-02-16">Items 11 implemented. Added server instructions, usage guide resource, and workflow prompts.</entry>
     <entry date="2026-02-16">Added feature item 12: Enrich OpenAPI tool descriptions with parameter summaries and response hints.</entry>
     <entry date="2026-02-16">Items 12 implemented. Enriched tool descriptions with params, examples, response hints, and tests.</entry>
+    <entry date="2026-02-16">Added feature item 13: Default write probe to /api/assets POST.</entry>
+    <entry date="2026-02-16">Added refactor item 14: Reformat main.py for PEP 8 readability.</entry>
+    <entry date="2026-02-16">Added refactor item 15: Split main.py into modules.</entry>
+    <entry date="2026-02-16">Items 15 implemented. Split main.py into modules with a thin entry point and packaged helpers.</entry>
+    <entry date="2026-02-16">Added bug item 16: Docker container fails to import claw2immich package.</entry>
+    <entry date="2026-02-16">Items 16 implemented. Updated Docker image contents to load the claw2immich package at runtime.</entry>
+    <entry date="2026-02-16">Archived items 8, 9, 10, 11, 12, 13, 15, 16.</entry>
+    <entry date="2026-02-16">Update scan: refreshed architecture notes, fixed XML structure, and synced feature file mappings.</entry>
   </changelog>
 </overview-features-bugs>

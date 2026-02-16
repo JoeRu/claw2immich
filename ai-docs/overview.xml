@@ -4,13 +4,13 @@
     <title>claw2immich</title>
     <version>0.1.0</version>
     <analyzed>2026-02-15</analyzed>
-    <updated>2026-02-15</updated>
+    <updated>2026-02-16</updated>
   </metadata>
 
   <architecture>
-    <description>Single-file Python entry point with configurable stdio/SSE/streamable HTTP MCP transports for Immich REST API access.</description>
+    <description>Python package entry point with module-based MCP server, configurable stdio/SSE/streamable HTTP transports, and Immich REST API access.</description>
     <patterns>
-      <pattern>Single-file script (temporary)</pattern>
+      <pattern>Module-based package with thin entry point</pattern>
     </patterns>
     <system-requirements>
       <requirement>Python &gt;= 3.12</requirement>
@@ -31,6 +31,7 @@
     <design-decisions>
       <decision date="2026-02-15">Start with a single-file entry point to iterate quickly.</decision>
       <decision date="2026-02-15">Allow MCP transport/host/port configuration via environment variables for tests and containers.</decision>
+      <decision date="2026-02-16">Refactor into a module-based package while keeping main.py as a thin entry point.</decision>
     </design-decisions>
   </architecture>
 
@@ -40,6 +41,7 @@
 
   <security>
     <note completed="2026-02-15" source-item="1">Auth and network handling introduced for Immich API access; ensure secrets are not logged and TLS is required.</note>
+    <note completed="2026-02-16" source-item="8">OpenAPI tools are filtered by permission metadata and write probes to reduce unauthorized exposure; avoid logging secrets.</note>
   </security>
 
   <completed-features>
@@ -47,6 +49,14 @@
       <title>Implement MCP server for Immich REST API</title>
       <description>Added config-driven Immich HTTP handling, OpenAPI spec fetch, and core MCP tools (ping, server info/version, current user).</description>
       <files>
+        <file>claw2immich/capabilities.py</file>
+        <file>claw2immich/config.py</file>
+        <file>claw2immich/constants.py</file>
+        <file>claw2immich/http_client.py</file>
+        <file>claw2immich/mcp_app.py</file>
+        <file>claw2immich/openapi.py</file>
+        <file>claw2immich/prompts.py</file>
+        <file>claw2immich/tooling.py</file>
         <file>main.py</file>
         <file>ai-docs/overview-features-bugs.xml</file>
       </files>
@@ -55,6 +65,8 @@
       <title>Filter MCP tools by API key permissions</title>
       <description>Added capability discovery and conditional tool registration; provided a tool access report for visibility into blocked tools.</description>
       <files>
+        <file>claw2immich/capabilities.py</file>
+        <file>claw2immich/tooling.py</file>
         <file>main.py</file>
         <file>ai-docs/overview-features-bugs.xml</file>
       </files>
@@ -91,6 +103,8 @@
       <title>Add env-driven MCP server transport configuration</title>
       <description>Added MCP transport configuration via environment variables and updated MCP client tests to run against an SSE server process.</description>
       <files>
+        <file>claw2immich/config.py</file>
+        <file>claw2immich/mcp_app.py</file>
         <file>main.py</file>
         <file>tests/test_mcp_client.py</file>
         <file>README.md</file>
@@ -106,5 +120,104 @@
         <file>ai-docs/overview-features-bugs.xml</file>
       </files>
     </feature>
+    <feature id="CF-8" completed="2026-02-16" source-item="8" completeness="FULL" test-coverage="TESTED">
+      <title>Expose Immich OpenAPI endpoints as MCP tools with permission filtering</title>
+      <description>Generated MCP tools for OpenAPI operations with auth/admin/write filtering and added tests for write-tool exposure.</description>
+      <files>
+        <file>claw2immich/openapi.py</file>
+        <file>claw2immich/tooling.py</file>
+        <file>main.py</file>
+        <file>tests/test_mcp_client.py</file>
+        <file>README.md</file>
+        <file>ai-docs/overview-features-bugs.xml</file>
+      </files>
+    </feature>
+    <feature id="CF-9" completed="2026-02-16" source-item="9" completeness="FULL" test-coverage="TESTED">
+      <title>Stop exposing OpenAPI summary/path tools</title>
+      <description>Removed OpenAPI summary/path tools from MCP registration and updated tests to match.</description>
+      <files>
+        <file>main.py</file>
+        <file>tests/test_mcp_client.py</file>
+        <file>ai-docs/overview-features-bugs.xml</file>
+      </files>
+    </feature>
+    <feature id="CF-10" completed="2026-02-16" source-item="10" completeness="FULL" test-coverage="TESTED">
+      <title>Expose OpenAPI parameter schemas for MCP tools</title>
+      <description>OpenAPI tool generation now exposes explicit parameter fields and updated tests validate schema presence.</description>
+      <files>
+        <file>claw2immich/openapi.py</file>
+        <file>claw2immich/tooling.py</file>
+        <file>main.py</file>
+        <file>tests/test_mcp_client.py</file>
+        <file>README.md</file>
+        <file>ai-docs/overview-features-bugs.xml</file>
+      </files>
+    </feature>
+    <feature id="CF-11" completed="2026-02-16" source-item="11" completeness="FULL" test-coverage="TESTED">
+      <title>Add MCP usage guide with server instructions and workflow examples</title>
+      <description>Added server instructions, a usage guide resource, and workflow prompts to improve tool discovery.</description>
+      <files>
+        <file>claw2immich/mcp_app.py</file>
+        <file>claw2immich/prompts.py</file>
+        <file>main.py</file>
+        <file>docs/usage-guide.md</file>
+        <file>README.md</file>
+        <file>ai-docs/overview-features-bugs.xml</file>
+      </files>
+    </feature>
+    <feature id="CF-12" completed="2026-02-16" source-item="12" completeness="FULL" test-coverage="TESTED">
+      <title>Enrich OpenAPI tool descriptions with parameter summaries and response hints</title>
+      <description>OpenAPI tool descriptions now include required parameter summaries, short examples, and response schema hints.</description>
+      <files>
+        <file>claw2immich/openapi.py</file>
+        <file>claw2immich/tooling.py</file>
+        <file>main.py</file>
+        <file>tests/test_mcp_client.py</file>
+        <file>docs/usage-guide.md</file>
+        <file>README.md</file>
+        <file>ai-docs/overview-features-bugs.xml</file>
+      </files>
+    </feature>
+    <feature id="CF-13" completed="2026-02-16" source-item="13" completeness="FULL" test-coverage="TESTED">
+      <title>Default write probe to /api/assets POST</title>
+      <description>Defaulted the write probe to POST /api/assets, documented the behavior, and added a unit test for default settings.</description>
+      <files>
+        <file>claw2immich/capabilities.py</file>
+        <file>main.py</file>
+        <file>tests/test_mcp_client.py</file>
+        <file>docs/usage-guide.md</file>
+        <file>README.md</file>
+        <file>ai-docs/overview-features-bugs.xml</file>
+      </files>
+    </feature>
+    <feature id="CF-15" completed="2026-02-16" source-item="15" completeness="FULL" test-coverage="TESTED">
+      <title>Split main.py into modules</title>
+      <description>Split main.py into a package with focused modules while keeping a thin entry point.</description>
+      <files>
+        <file>claw2immich/__init__.py</file>
+        <file>claw2immich/capabilities.py</file>
+        <file>claw2immich/config.py</file>
+        <file>claw2immich/constants.py</file>
+        <file>claw2immich/http_client.py</file>
+        <file>claw2immich/mcp_app.py</file>
+        <file>claw2immich/openapi.py</file>
+        <file>claw2immich/prompts.py</file>
+        <file>claw2immich/tooling.py</file>
+        <file>main.py</file>
+        <file>ai-docs/overview-features-bugs.xml</file>
+      </files>
+    </feature>
+    <feature id="CF-16" completed="2026-02-16" source-item="16" completeness="FULL" test-coverage="TESTED">
+      <title>Docker container fails to import claw2immich package</title>
+      <description>Added the package and docs to the image and set PYTHONPATH so main.py can import claw2immich during container startup.</description>
+      <files>
+        <file>Dockerfile</file>
+        <file>ai-docs/overview-features-bugs.xml</file>
+      </files>
+    </feature>
   </completed-features>
+
+  <lessons-learned>
+    <note date="2026-02-16">Keep architecture notes and file mappings current after refactors to prevent drift and stale XML structure.</note>
+  </lessons-learned>
 </overview>

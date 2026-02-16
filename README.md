@@ -16,7 +16,7 @@ claw2immich is a Python MCP (Model Context Protocol) server that exposes selecte
 - `get_current_user` (only when permitted by API key/token)
 
 All OpenAPI endpoints are exposed as tools named `immich_<operation>` or `immich_<method>_<path>`.
-Tools are filtered based on auth presence, admin-only markers, and write capability probes (set `IMMICH_WRITE_PROBE_PATH` to enable write tools).
+Tools are filtered based on auth presence, admin-only markers, and write capability probes (default `POST /api/assets`).
 
 OpenAPI tool descriptions include:
 - `params:` summary of required path/query/body fields
@@ -42,7 +42,7 @@ Environment variables:
 - `IMMICH_BASE_URL` (default `http://localhost:2283`)
 - `IMMICH_API_KEY`
 - `IMMICH_API_TOKEN`
-- `IMMICH_WRITE_PROBE_PATH` (optional write capability probe)
+- `IMMICH_WRITE_PROBE_PATH` (default `/api/assets`)
 - `IMMICH_WRITE_PROBE_METHOD` (default `POST`)
 
 MCP server environment variables:
@@ -96,12 +96,16 @@ docker compose build
 docker compose up
 ```
 
+Note: the container runs `main.py`, which imports the `claw2immich` package.
+If you change the package layout, rebuild the image so the updated package is
+copied into the container.
+
 Environment variables are passed through from your shell or `.env` file:
 - `IMMICH_BASE_URL` (default `http://host.docker.internal:2283`)
 - `IMMICH_API_KEY`
 - `IMMICH_API_TOKEN`
-- `IMMICH_WRITE_PROBE_PATH`
-- `IMMICH_WRITE_PROBE_METHOD`
+- `IMMICH_WRITE_PROBE_PATH` (default `/api/assets`)
+- `IMMICH_WRITE_PROBE_METHOD` (default `POST`)
 
 MCP server settings for Docker Compose:
 - `MCP_TRANSPORT` (default `sse` in compose; use `streamable-http` for HTTP)

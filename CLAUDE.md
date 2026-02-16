@@ -19,16 +19,17 @@ claw2immich is a Python MCP (Model Context Protocol) server that exposes the Imm
 ## Architecture
 - Always check on https://github.com/modelcontextprotocol/python-sdk/blob/main/README.md
 for implementation details of MCP.
-- Single entry point in [main.py](main.py) using `FastMCP("claw2immich")` with stdio transport
+- Entry point remains [main.py](main.py) but logic is split into the `claw2immich/` package; server setup lives in `mcp_app.py`
 - MCP tools are defined as plain functions registered via `_register_tools()` based on runtime capability discovery
-- `_get_config()` reads `IMMICH_BASE_URL`, `IMMICH_API_KEY`, and `IMMICH_API_TOKEN` from environment variables
-- `_request()` handles all HTTP calls; `_probe()` does non-throwing connectivity/permission checks
-- `_discover_capabilities()` and `_discover_write_capability()` probe the Immich server at startup to determine which tools to expose
-- OpenAPI spec is fetched and cached via `_fetch_openapi_spec()` for introspection tools
+- Config helpers in `config.py` read `IMMICH_BASE_URL`, `IMMICH_API_KEY`, and `IMMICH_API_TOKEN`
+- HTTP handling lives in `http_client.py` (`_request()`, `_probe()`)
+- Capability probes live in `capabilities.py` (`_discover_capabilities()`, `_discover_write_capability()`)
+- OpenAPI spec is fetched and cached via `_fetch_openapi_spec()` in `openapi.py`
 
 ## Key Conventions
 
 - No formatter or linter configured; keep style minimal and consistent with existing code
+- Coding guideline: https://peps.python.org/pep-0008/
 - Immich API key/token handling is security-sensitive — never log secrets
 - OpenAPI spec source: https://github.com/immich-app/immich/blob/main/open-api/immich-openapi-specs.json
 

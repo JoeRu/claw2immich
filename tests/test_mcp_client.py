@@ -92,6 +92,22 @@ async def _wait_for_port(host: str, port: int, timeout: float) -> None:
     raise TimeoutError(f"Server did not open port {port} within {timeout:.1f}s")
 
 
+class WriteProbeDefaultsTests(unittest.TestCase):
+    def test_defaults(self) -> None:
+        original_env = os.environ.copy()
+        try:
+            os.environ.pop("IMMICH_WRITE_PROBE_METHOD", None)
+            os.environ.pop("IMMICH_WRITE_PROBE_PATH", None)
+
+            method, path = main._write_probe_settings()
+
+            self.assertEqual(method, "POST")
+            self.assertEqual(path, "/api/assets")
+        finally:
+            os.environ.clear()
+            os.environ.update(original_env)
+
+
 class BaseMCPClientTests(unittest.IsolatedAsyncioTestCase):
     TEST_TIMEOUT_SECONDS = float(os.getenv("MCP_TEST_TIMEOUT", "20"))
     ENV_PATH_VAR = "IMMICH_ENV_TEST"

@@ -2,9 +2,6 @@
 
 This guide explains how to use the MCP server to discover tools and perform common Immich workflows. It is designed for MCP clients and AI agents.
 
-## Server Instructions
-During initialize, the server sends `instructions` that summarize how to use this MCP server. Clients can display these to users or feed them to the model. See the resource `docs://usage-guide` for full details.
-
 ## Tool Documentation
 Tools include:
 - `name` and `description` (always includes the HTTP method and path)
@@ -89,5 +86,5 @@ Example call:
 
 ## Tips
 - Always call `tool_access_report` first when permissions are uncertain.
-- If a tool is missing, check admin-only or write permissions and set `IMMICH_WRITE_PROBE_PATH` when needed.
+- Write tools only appear when your credentials allow `POST /api/assets` (use `write_capability_report` to see the reason).
 - Use tool descriptions to select the right tool without relying on exact names.
