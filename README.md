@@ -34,6 +34,7 @@ Legacy fields `path_params`, `query_params`, `headers`, and `json_body` are stil
 
 ## MCP documentation surfaces
 - Server instructions are sent during initialize. Use them as the short on-ramp and point to the usage guide resource.
+- Initialize instructions now call out externalDomain discovery, workflow groups, do/don't guidance, and an example instruction string.
 - Resource: `docs://usage-guide` contains a detailed workflow guide with examples.
 - Prompts: workflow templates are available under titles like "Immich: Get image", "Immich: Find person", and "Immich: Share album".
 
@@ -53,7 +54,8 @@ MCP server environment variables:
 - `MCP_LOG_LEVEL` (default `INFO`)
 
 OpenAPI spec source:
-https://github.com/immich-app/immich/blob/main/open-api/immich-openapi-specs.json
+Version-matched spec (after `/api/health` and `/api/server/version`):
+https://raw.githubusercontent.com/immich-app/immich/v{VERSION}/open-api/immich-openapi-specs.json
 
 ## Run
 ```
@@ -62,6 +64,8 @@ python main.py
 
 ## Tests
 Integration tests use the standard library `unittest` runner (pytest can also discover them).
+
+Blocked tool reasons now include HTTP status or network error details to help troubleshoot capability checks.
 
 Integration test setup:
 1. Ensure an Immich server is running and reachable.

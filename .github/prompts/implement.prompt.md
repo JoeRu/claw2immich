@@ -88,7 +88,7 @@ For each completed item, fill the `<r>` block:
 - Set `outcome` to `DONE` if verification passed, `PROBLEM` if issues remain
 - List ALL files that were created or modified
 - Record observations about unexpected findings or decisions made
-- Record lessons learned for future reference
+- Record lessons learned for future reference and update `LESSONS-LEARNED` in `overview.xml` and `LESSONS_LEARNED.md` if applicable (for example, if a new pattern was established or a risk was realized)
 
 ### 9. Update Item Status
 

@@ -11,13 +11,76 @@ from .constants import (
     MAX_DESCRIPTION_LEN,
     OPENAPI_SPEC_URL,
 )
+from .http_client import _probe, _request
+
+
+def _permission_is_read(permission: str | None) -> bool:
+    if not permission:
+        return False
+    upper = permission.upper()
+    if "READ" not in upper:
+        return False
+    if any(token in upper for token in ("WRITE", "UPLOAD", "CREATE", "DELETE")):
+        return False
+    return True
+
+
+def _version_tag_from_payload(payload: dict[str, Any]) -> str:
+    major = payload.get("major")
+    minor = payload.get("minor")
+    patch = payload.get("patch")
+    if not all(isinstance(value, int) for value in (major, minor, patch)):
+        raise ValueError("Immich server version payload is missing major/minor/patch")
+    return f"v{major}.{minor}.{patch}"
+
+
+def _versioned_spec_url(version_tag: str) -> str:
+    return (
+        "https://raw.githubusercontent.com/immich-app/immich/"
+        f"{version_tag}/open-api/immich-openapi-specs.json"
+    )
+
+
+def _require_server_health() -> None:
+    health = _probe("GET", "/api/health")
+    if health.get("ok"):
+        return
+    status_code = health.get("status_code")
+    if status_code == 404:
+        fallback = _probe("GET", "/api/server/ping")
+        if fallback.get("ok"):
+            return
+        detail = fallback.get("detail") or fallback.get("error") or "unknown error"
+        raise ValueError(f"Immich health check failed: {detail}")
+    detail = health.get("detail") or health.get("error") or "unknown error"
+    raise ValueError(f"Immich health check failed: {detail}")
 
 
 @lru_cache
 def _fetch_openapi_spec() -> dict[str, Any]:
+    _require_server_health()
+
+    version_payload = _request("GET", "/api/server/version")
+    if not isinstance(version_payload, dict) or version_payload.get("error"):
+        detail = (
+            version_payload.get("detail")
+            if isinstance(version_payload, dict)
+            else "unknown error"
+        )
+        raise ValueError(f"Failed to fetch Immich server version: {detail}")
+
+    version_tag = _version_tag_from_payload(version_payload)
+    spec_url = _versioned_spec_url(version_tag)
+
     with httpx.Client(timeout=DEFAULT_TIMEOUT) as client:
-        response = client.get(OPENAPI_SPEC_URL)
-    response.raise_for_status()
+        response = client.get(spec_url)
+    try:
+        response.raise_for_status()
+    except httpx.HTTPStatusError as exc:
+        raise ValueError(
+            f"OpenAPI spec not available for {version_tag}: "
+            f"HTTP {exc.response.status_code}"
+        ) from exc
     return response.json()
 
 

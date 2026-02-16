@@ -22,6 +22,7 @@ from .openapi import (
     _operation_permission,
     _operation_request_body_spec,
     _operation_requires_auth,
+    _permission_is_read,
     _response_schema_info,
     _tool_name_for_operation,
     _truncate_description,
@@ -73,7 +74,8 @@ def _openapi_tool_access() -> dict[str, Any]:
             )
             continue
 
-        is_write = method in WRITE_METHODS
+        permission = _operation_permission(operation)
+        is_write = method in WRITE_METHODS and not _permission_is_read(permission)
         if is_write and not bool(write_capability.get("allowed")):
             reason = str(
                 write_capability.get("reason") or "Write capability not allowed"

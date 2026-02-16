@@ -1,6 +1,22 @@
+---
+description: 'Usage Guide only for AI Agents as mcp clients.'
+agent: 'agent'
+---
+
 # claw2immich MCP Usage Guide
 
 This guide explains how to use the MCP server to discover tools and perform common Immich workflows. It is designed for MCP clients and AI agents.
+
+## Build Web URLs (Assets, Albums, People, Places)
+Before constructing links, call the tool whose description starts with `GET /api/server-config` and read `externalDomain`.
+
+Use `externalDomain` as the base URL (no trailing slash). Build web UI links like:
+- Asset (image): `<externalDomain>/photos/<asset-id>`
+- Album: `<externalDomain>/albums/<album-id>`
+- Person: `<externalDomain>/people/<person-id>`
+- Place: `<externalDomain>/places/<place-id>`
+
+If `externalDomain` is empty, fall back to the base URL you connected to (for example `IMMICH_BASE_URL`). If a URL does not resolve, prefer share-link endpoints or verify the web UI path for your Immich version.
 
 ## Tool Documentation
 Tools include:
@@ -31,6 +47,26 @@ Legacy parameters (`path_params`, `query_params`, `headers`, `json_body`) still 
 
 ## Client Handling
 Clients automatically receive server info, instructions, capabilities, and tool lists on connect. Use this to inform tool selection and reduce guesswork.
+
+## Initialize Instructions
+Initialize instructions include externalDomain guidance for link building. Use the tool whose description starts with `GET /api/server-config` and read `externalDomain` before constructing links.
+
+Workflow groups called out in instructions:
+- discovery: tool access reports and server config
+- assets: assets and search endpoints
+- people: people and face endpoints
+- albums: album and share endpoints
+- utilities: server info/version
+
+Do:
+- Read `tool_access_report` when permissions are uncertain.
+- Follow `inputSchema` prefixes (`path_`, `query_`, `body`) for arguments.
+
+Don't:
+- Guess domains or tool names.
+
+Example instructions string:
+"1) Read tool_access_report and server config. 2) Pick tools by description. 3) Use inputSchema prefixes and required params."
 
 ## Workflow Examples
 These examples use tool descriptions and parameter prefixes rather than hard-coded tool names.
@@ -67,6 +103,24 @@ Example call:
 - Tool: description contains `assets`
 - Args: `{ "query_sort": "desc", "query_take": 1 }`
 
+### Search Assets (searchAssets)
+1. Look for a tool whose description starts with `POST /api/search/assets`.
+2. Use `inputSchema` to decide whether to pass `query_` fields or a JSON `body`.
+3. Provide the search text and any filters in the required fields.
+
+Example call:
+- Tool: description `POST /api/search/assets`
+- Args: `{ "body": { "query": "mountain", "page": 1 } }`
+
+### Smart Search (searchSmart)
+1. Look for a tool whose description starts with `POST /api/search/smart`.
+2. Use `inputSchema` and pass the smart query in `body` when required.
+3. Combine with filters (dates, people, places) only if they appear in the schema.
+
+Example call:
+- Tool: description `POST /api/search/smart`
+- Args: `{ "body": { "query": "golden retriever" } }`
+
 ### Upload a Photo
 1. Look for tools with descriptions like `POST /api/assets` or `POST /api/assets/upload`.
 2. Inspect the `inputSchema` to determine whether to pass `body` or header metadata.
@@ -88,3 +142,5 @@ Example call:
 - Always call `tool_access_report` first when permissions are uncertain.
 - Write tools only appear when your credentials allow `POST /api/assets` (use `write_capability_report` to see the reason).
 - Use tool descriptions to select the right tool without relying on exact names.
+- Blocked tools now include specific HTTP status or network error reasons to help troubleshoot access issues.
+- Some search endpoints use `POST` but still require only read permissions; they should appear when the permission is read-only.

@@ -6,9 +6,10 @@
   </metadata>
 
   <items>
-    <item id="14" type="refactoring" status="PENDING" priority="MEDIUM" complexity="M" security="false">
-      <title>Reformat main.py for PEP 8 readability</title>
+    <item id="14" type="refactoring" status="IN_PROGRESS" priority="MEDIUM" complexity="M" security="false">
+      <title>Reformat python-files for PEP 8 readability</title>
       <branch>refactoring/item-14-reformat-main-py-for-pep8-readability</branch>
+        <branch>refactoring/item-14-reformat-main-py-for-pep8-readability</branch>
       <justification>Improve code readability and maintainability by aligning main.py with PEP 8 style guidance.</justification>
       <depends-on></depends-on>
 
@@ -26,6 +27,10 @@
       </verification>
 
       <impact-check>
+              <security-impact>
+                <category>CODE QUALITY</category>
+                <notes>Minimal security impact; no auth, secrets, or network changes. Only code formatting for readability.</notes>
+              </security-impact>
         <affected-items>
           <item-ref id="1">Implement MCP server for Immich REST API</item-ref>
           <item-ref id="2">Filter MCP tools by API key permissions</item-ref>
@@ -39,7 +44,373 @@
         <notes>Items 8-13 are not mapped in overview completed-features; keep documentation alignment in mind and run existing tests to confirm no behavior changes.</notes>
       </impact-check>
     </item>
+    <item id="17" type="feature" status="DONE" priority="MEDIUM" complexity="M" security="false">
+      <title>Expand initialize instructions with workflows, tool groups, and examples</title>
+      <branch>feature/item-17-expand-initialize-instructions-workflows-examples</branch>
+      <justification>Provide richer server-level guidance so MCP clients can build correct links, follow common workflows, and choose the right tools with concrete recommendations.</justification>
+      <depends-on>11</depends-on>
+
+      <tasks>
+        <task id="17.1">Extend server initialize instructions to include an externalDomain for link building.</task>
+        <task id="17.2">Add typical workflow guidance and tool groupings so clients know which tools to call for common tasks.</task>
+        <task id="17.3">Include concrete recommendations (do/don't style) and a gold-standard instructions example string.</task>
+        <task id="17.4">Update usage guide and README to reference the enriched initialize instructions and examples.</task>
+      </tasks>
+
+      <verification>
+        <manual-steps>
+          <step order="1">Connect with an MCP client and confirm initialize instructions include externalDomain, workflows, tool groups, and the example string.</step>
+          <step order="2">Read the usage guide resource and README to ensure the new guidance is documented consistently.</step>
+        </manual-steps>
+      </verification>
+
+      <impact-check>
+        <affected-items>
+          <item-ref id="11">Add MCP usage guide with server instructions and workflow examples</item-ref>
+        </affected-items>
+        <notes>Keep instructions concise and avoid exposing secrets while adding concrete examples.</notes>
+      </impact-check>
+      <r>
+        <outcome>DONE</outcome>
+        <observations>Expanded server initialize instructions with externalDomain guidance, workflow groups, and an example string; updated usage guide and README to align.</observations>
+        <lessons-learned>Keep initialize guidance concise while still pointing to server-config for link building.</lessons-learned>
+        <files>
+          <file>claw2immich/constants.py</file>
+          <file>docs/usage-guide.md</file>
+          <file>README.md</file>
+          <file>ai-docs/overview-features-bugs.xml</file>
+        </files>
+      </r>
+    </item>
+    <item id="18" type="bug" status="DONE" priority="HIGH" complexity="M" security="false">
+        <title>Blocked_tools reason too generic for capability errors</title>
+      <branch>bug/item-18-blocked-tools-reason-capability-errors</branch>
+        <justification>When capability probing fails, blocked_tools reports a generic error ("Immich server error during capability check") for ~130 tools. This makes it impossible to distinguish between permission denied (403), server error (500), or timeout, which is critical for debugging and user guidance.</justification>
+        <depends-on></depends-on>
+
+        <tasks>
+          <task id="18.1">Reproduce the blocked_tools entry with a generic error and log the actual HTTP status code or exception for several endpoints.</task>
+          <task id="18.2">Update capability discovery to record and report the specific error type (e.g., 403, 500, timeout) in blocked_tools reasons.</task>
+          <task id="18.3">Add a regression test to ensure blocked_tools reasons are specific and actionable for at least 3 error types.</task>
+          <task id="18.4">Update documentation and usage guidance to help users interpret blocked_tools error reasons.</task>
+        </tasks>
+
+        <verification>
+          <manual-steps>
+            <step order="1">Start the MCP server with credentials that trigger different error types and confirm blocked_tools reasons are specific (e.g., 403, 500, timeout).</step>
+            <step order="2">Check Smart Search, Metadata Search, and Random Search workflows for improved error reporting and actionable guidance.</step>
+          </manual-steps>
+        </verification>
+
+        <impact-check>
+          <affected-items>
+            <item-ref id="2">Filter MCP tools by API key permissions</item-ref>
+            <item-ref id="8">Expose Immich OpenAPI endpoints as MCP tools with permission filtering</item-ref>
+            <item-ref id="11">Add MCP usage guide with server instructions and workflow examples</item-ref>
+          </affected-items>
+          <notes>Completed features list FULL completeness and TESTED coverage; ensure error reporting is granular enough for debugging and user support.</notes>
+        </impact-check>
+        <r>
+          <outcome>DONE</outcome>
+          <observations>Capability probe errors now include HTTP status or network error details in blocked tool reasons; added unit tests covering 403, 500, and timeout-style failures.</observations>
+          <lessons-learned>Surface probe status codes in blocked tool reasons to make debugging actionable.</lessons-learned>
+          <files>
+            <file>claw2immich/capabilities.py</file>
+            <file>docs/usage-guide.md</file>
+            <file>README.md</file>
+            <file>tests/test_capabilities.py</file>
+            <file>ai-docs/overview-features-bugs.xml</file>
+          </files>
+        </r>
+      </item>
+    <item id="22" type="feature" status="DONE" priority="MEDIUM" complexity="M" security="false">
+      <title>Fetch OpenAPI spec for server version</title>
+      <branch>feature/item-22-fetch-openapi-spec-version</branch>
+      <justification>Ensure the OpenAPI spec matches the running Immich server by probing health, reading the server version, and fetching the versioned spec from GitHub.</justification>
+      <depends-on></depends-on>
+
+      <tasks>
+        <task id="22.1">Probe `/api/health` for reachability before fetching version or spec.</task>
+        <task id="22.2">Fetch `/api/server/version` and parse the major/minor/patch values.</task>
+        <task id="22.3">Construct the versioned spec URL and load `immich-openapi-specs.json` from the matching git tag.</task>
+        <task id="22.4">Add fallback or error messaging when health or version fetch fails.</task>
+        <task id="22.5">Update tests/docs to cover versioned spec behavior.</task>
+      </tasks>
+
+      <verification>
+        <manual-steps>
+          <step order="1">Start the server and confirm the OpenAPI spec fetch uses the reported version tag.</step>
+          <step order="2">Simulate health failure and confirm spec fetch reports a clear error.</step>
+        </manual-steps>
+      </verification>
+
+      <impact-check>
+        <affected-items>
+          <item-ref id="1">Implement MCP server for Immich REST API</item-ref>
+          <item-ref id="8">Expose Immich OpenAPI endpoints as MCP tools with permission filtering</item-ref>
+          <item-ref id="10">Expose OpenAPI parameter schemas for MCP tools</item-ref>
+          <item-ref id="12">Enrich OpenAPI tool descriptions with parameter summaries and response hints</item-ref>
+        </affected-items>
+        <notes>Completed features are FULL and TESTED; version-specific spec fetching must keep tool generation stable and cache-safe.</notes>
+      </impact-check>
+      <r>
+        <outcome>DONE</outcome>
+        <observations>OpenAPI spec fetch now checks server health, reads version, and loads the versioned spec from GitHub with unit coverage.</observations>
+        <lessons-learned>Prefer versioned OpenAPI spec URLs to avoid endpoint drift across Immich releases.</lessons-learned>
+        <files>
+          <file>claw2immich/openapi.py</file>
+          <file>docs/usage-guide.md</file>
+          <file>README.md</file>
+          <file>tests/test_openapi_versioned_spec.py</file>
+          <file>ai-docs/overview-features-bugs.xml</file>
+        </files>
+      </r>
+    </item>
+    <item id="23" type="bug" status="DONE" priority="HIGH" complexity="M" security="false">
+      <title>searchAssets/searchSmart missing and 400 errors in tool_access_report</title>
+      <branch>bug/item-23-searchassets-searchsmart-400-report</branch>
+      <justification>Smart Search endpoints are critical; they should appear in tool_access_report when available. Many tools show 400 not found in the report, suggesting a mismatch in probing or path generation.</justification>
+      <depends-on></depends-on>
+
+      <tasks>
+        <task id="23.1">Inspect tool_access_report output and verify whether searchAssets/searchSmart are blocked due to capability checks, admin-only flags, or write probe gating.</task>
+        <task id="23.2">Identify why blocked tools are reporting 400 not found and map failures back to request paths, base path, or OpenAPI operation mapping.</task>
+        <task id="23.3">Fix probe or tool filtering logic so missing endpoints are reported with accurate reasons and searchAssets/searchSmart are available when permitted.</task>
+        <task id="23.4">Add regression tests to validate tool_access_report includes searchAssets/searchSmart with valid permissions and does not produce false 400 not found entries.</task>
+        <task id="23.5">Update documentation with guidance on interpreting 400/not found tool_access_report reasons if any remain expected.</task>
+      </tasks>
+
+      <verification>
+        <manual-steps>
+          <step order="1">Start the MCP server with full-access credentials and confirm searchAssets/searchSmart appear in tool_access_report.</step>
+          <step order="2">Confirm blocked tool reasons no longer show widespread 400 not found unless the endpoint truly does not exist.</step>
+        </manual-steps>
+      </verification>
+
+      <impact-check>
+        <affected-items>
+          <item-ref id="2">Filter MCP tools by API key permissions</item-ref>
+          <item-ref id="8">Expose Immich OpenAPI endpoints as MCP tools with permission filtering</item-ref>
+          <item-ref id="21">Enable searchAssets/searchSmart endpoints</item-ref>
+          <item-ref id="22">Fetch OpenAPI spec for server version</item-ref>
+        </affected-items>
+        <notes>Completed features are FULL and TESTED; ensure tool_access_report reflects real endpoint availability and permissions without masking missing routes.</notes>
+      </impact-check>
+      <r>
+        <outcome>DONE</outcome>
+        <observations>Read-only POST endpoints are no longer blocked by write probes; write probe 400s are treated as validation errors, and tool_access_report uses permission hints to gate write tools.</observations>
+        <lessons-learned>Use permission metadata to avoid over-blocking POST-based read endpoints like search tools.</lessons-learned>
+        <files>
+          <file>claw2immich/capabilities.py</file>
+          <file>claw2immich/openapi.py</file>
+          <file>claw2immich/tooling.py</file>
+          <file>docs/usage-guide.md</file>
+          <file>ai-docs/overview-features-bugs.xml</file>
+        </files>
+      </r>
+    </item>
+    <item id="24" type="feature" status="DONE" priority="MEDIUM" complexity="S" security="false">
+      <title>Add searchAssets/searchSmart guidance to prompts</title>
+      <branch>feature/item-24-searchassets-searchsmart-guidance</branch>
+      <justification>Prompts should guide clients to use searchAssets/searchSmart correctly, including required parameters and search workflow hints.</justification>
+      <depends-on>23</depends-on>
+
+      <tasks>
+        <task id="24.1">Add prompt guidance in prompts.py that calls out searchAssets/searchSmart and how to supply query/body parameters.</task>
+        <task id="24.2">Ensure prompt wording highlights tool selection by description and inputSchema prefixes for search endpoints.</task>
+      </tasks>
+
+      <verification>
+        <manual-steps>
+          <step order="1">List prompts and confirm the search guidance is present and references searchAssets/searchSmart usage.</step>
+        </manual-steps>
+      </verification>
+
+      <impact-check>
+        <affected-items>
+          <item-ref id="11">Add MCP usage guide with server instructions and workflow examples</item-ref>
+          <item-ref id="21">Enable searchAssets/searchSmart endpoints</item-ref>
+          <item-ref id="23">searchAssets/searchSmart missing and 400 errors in tool_access_report</item-ref>
+        </affected-items>
+        <notes>Completed features are FULL and TESTED; prompts should remain concise and aligned with tool descriptions.</notes>
+      </impact-check>
+      <r>
+        <outcome>DONE</outcome>
+        <observations>Added prompts guiding searchAssets/searchSmart usage with tool selection by description and inputSchema hints.</observations>
+        <lessons-learned>Search prompts should emphasize POST search endpoints while staying schema-driven.</lessons-learned>
+        <files>
+          <file>claw2immich/prompts.py</file>
+          <file>ai-docs/overview-features-bugs.xml</file>
+        </files>
+      </r>
+    </item>
+    <item id="25" type="feature" status="DONE" priority="MEDIUM" complexity="M" security="false">
+      <title>Dynamic externalDomain in initialize instructions</title>
+      <branch>feature/item-25-dynamic-externaldomain</branch>
+      <justification>Initialize instructions should reflect the actual externalDomain from server config so clients can build correct links without manual lookup.</justification>
+      <depends-on>17</depends-on>
+
+      <tasks>
+        <task id="25.1">Fetch externalDomain from the server config during initialize and inject it into the instructions payload.</task>
+        <task id="25.2">Update instructions text to reflect the dynamic externalDomain value when present, and provide a fallback when missing.</task>
+        <task id="25.3">Add tests or checks to validate initialize instructions include externalDomain when available.</task>
+      </tasks>
+
+      <verification>
+        <manual-steps>
+          <step order="1">Connect an MCP client and verify initialize instructions include the resolved externalDomain.</step>
+        </manual-steps>
+      </verification>
+
+      <impact-check>
+        <affected-items>
+          <item-ref id="11">Add MCP usage guide with server instructions and workflow examples</item-ref>
+          <item-ref id="17">Expand initialize instructions with workflows, tool groups, and examples</item-ref>
+          <item-ref id="19">Tool descriptions lack externalDomain guidance</item-ref>
+        </affected-items>
+        <notes>Completed features are FULL and TESTED; ensure instructions remain concise and avoid leaking secrets.</notes>
+      </impact-check>
+      <r>
+        <outcome>DONE</outcome>
+        <observations>Initialize instructions now inject the resolved externalDomain when available, with a fallback hint when missing.</observations>
+        <lessons-learned>Generate initialize instructions at runtime to keep link guidance accurate.</lessons-learned>
+        <files>
+          <file>claw2immich/constants.py</file>
+          <file>claw2immich/mcp_app.py</file>
+          <file>tests/test_instructions.py</file>
+          <file>ai-docs/overview-features-bugs.xml</file>
+        </files>
+      </r>
+    </item>
+    <item id="26" type="refactoring" status="PENDING" priority="MEDIUM" complexity="S" security="false">
+      <title>Expand usage guide with URL building and search guidance</title>
+      <branch>refactoring/item-26-usage-guide-url-search-guidance</branch>
+      <justification>Clarify link construction for assets, albums, people, and places while documenting searchAssets and searchSmart workflows for MCP clients.</justification>
+      <depends-on></depends-on>
+
+      <tasks>
+        <task id="26.1">Add a usage guide section that explains externalDomain-based URL construction for assets, albums, people, and places.</task>
+        <task id="26.2">Document searchAssets and searchSmart workflows with tool selection guidance and schema-driven inputs.</task>
+        <task id="26.3">Review usage guide examples to ensure consistency with initialize instructions and prompts.</task>
+      </tasks>
+
+      <verification>
+        <manual-steps>
+          <step order="1">Read the usage guide and confirm the URL construction guidance references externalDomain and correct UI paths.</step>
+          <step order="2">Verify the searchAssets and searchSmart sections point to the correct tool descriptions and inputSchema guidance.</step>
+        </manual-steps>
+      </verification>
+
+      <impact-check>
+        <affected-items>
+          <item-ref id="11">Add MCP usage guide with server instructions and workflow examples</item-ref>
+          <item-ref id="12">Enrich OpenAPI tool descriptions with parameter summaries and response hints</item-ref>
+          <item-ref id="25">Dynamic externalDomain in initialize instructions</item-ref>
+        </affected-items>
+        <notes>Completed features are FULL and TESTED; keep documentation aligned with initialize guidance and tool descriptions.</notes>
+      </impact-check>
+    </item>
   </items>
+      <changelog>
+        <entry date="2026-02-16" user="GitHub Copilot">Approved item 14: Reformat python-files for PEP 8 readability. Status set to APPROVED. Branch: refactoring/item-14-reformat-main-py-for-pep8-readability. Security impact: Minimal, code quality only.</entry>
+        <entry date="2026-02-16" user="GitHub Copilot">Approved item 17: Expand initialize instructions with workflows, tool groups, and examples. Status set to APPROVED. Branch: feature/item-17-expand-initialize-instructions-workflows-examples. Security impact: None.</entry>
+        <entry date="2026-02-16" user="GitHub Copilot">Approved item 18: Blocked_tools reason too generic for capability errors. Status set to APPROVED. Branch: bug/item-18-blocked-tools-reason-capability-errors. Security impact: None.</entry>
+        <entry date="2026-02-16" user="GitHub Copilot">Items 17, 18 implemented. Expanded initialize guidance with externalDomain/tool groups and improved capability error reasons with coverage.</entry>
+        <entry date="2026-02-16" user="GitHub Copilot">Added item 22: Versioned OpenAPI spec fetch based on server health and version.</entry>
+        <entry date="2026-02-16" user="GitHub Copilot">Added item 23: Investigate missing searchAssets/searchSmart and 400 not found entries in tool_access_report.</entry>
+        <entry date="2026-02-16" user="GitHub Copilot">Approved items 22, 23. Status set to APPROVED. Branches: feature/item-22-fetch-openapi-spec-version, bug/item-23-searchassets-searchsmart-400-report.</entry>
+        <entry date="2026-02-16" user="GitHub Copilot">Items 22, 23 implemented. Versioned OpenAPI spec fetching and improved tool_access_report gating for POST search endpoints.</entry>
+        <entry date="2026-02-16" user="GitHub Copilot">Added item 24: Add searchAssets/searchSmart guidance to prompts.</entry>
+        <entry date="2026-02-16" user="GitHub Copilot">Added item 25: Dynamic externalDomain in initialize instructions.</entry>
+        <entry date="2026-02-16" user="GitHub Copilot">Approved items 24, 25. Status set to APPROVED. Branches: feature/item-24-searchassets-searchsmart-guidance, feature/item-25-dynamic-externaldomain.</entry>
+        <entry date="2026-02-16" user="GitHub Copilot">Items 24, 25 implemented. Added search prompts and dynamic externalDomain in initialize instructions.</entry>
+        <entry date="2026-02-16" user="GitHub Copilot">Added item 26: Expand usage guide with URL building and search guidance.</entry>
+      </changelog>
+    <item id="21" type="feature" status="PENDING" priority="MEDIUM" complexity="M" security="false">
+      <title>Enable searchAssets/searchSmart endpoints</title>
+      <branch>feature/item-21-enable-searchassets-searchsmart-endpoints</branch>
+      <justification>Currently, the searchAssets and searchSmart endpoints are blocked or unavailable due to capability probe errors or permission filtering. Enabling these endpoints will restore Smart Search and related workflows for users and agents.</justification>
+      <depends-on></depends-on>
+
+      <tasks>
+        <task id="21.1">Investigate why searchAssets and searchSmart are blocked or filtered out during capability discovery.</task>
+        <task id="21.2">Update capability probing and permission checks to allow these endpoints when the API key/token has sufficient permissions.</task>
+        <task id="21.3">Add or update tests to confirm searchAssets and searchSmart are exposed and functional when permitted.</task>
+        <task id="21.4">Update documentation and usage guidance to reflect the availability of Smart Search features.</task>
+      </tasks>
+
+      <verification>
+        <manual-steps>
+          <step order="1">Start the MCP server with full-access credentials and confirm searchAssets and searchSmart are listed and callable.</step>
+          <step order="2">Run Smart Search workflows and verify correct results are returned.</step>
+        </manual-steps>
+      </verification>
+
+      <impact-check>
+        <affected-items>
+          <item-ref id="2">Filter MCP tools by API key permissions</item-ref>
+          <item-ref id="8">Expose Immich OpenAPI endpoints as MCP tools with permission filtering</item-ref>
+          <item-ref id="18">Blocked_tools reason too generic for capability errors</item-ref>
+        </affected-items>
+        <notes>Completed features are FULL and TESTED; ensure Smart Search is only enabled when permissions allow and error reporting is actionable.</notes>
+      </impact-check>
+    </item>
+    <item id="20" type="bug" status="PENDING" priority="HIGH" complexity="M" security="false">
+      <title>query_type unknown for some parameters (e.g. getsearchsuggestions, getpartners)</title>
+      <branch>bug/item-20-query-type-unknown-for-some-params</branch>
+      <justification>Some tool parameters (such as for getsearchsuggestions and getpartners) have query_type: unknown and lack enum values, forcing agents to guess valid values and breaking automation for those endpoints.</justification>
+      <depends-on></depends-on>
+
+      <tasks>
+        <task id="20.1">Identify all tool parameters with query_type: unknown and missing enum values.</task>
+        <task id="20.2">Update OpenAPI parameter schema extraction to provide valid enum values or at least document expected types for these parameters.</task>
+        <task id="20.3">Add a regression test to ensure all query_type fields are either valid or have documented value options.</task>
+        <task id="20.4">Update usage documentation to clarify how agents should select values for these parameters.</task>
+      </tasks>
+
+      <verification>
+        <manual-steps>
+          <step order="1">List all tools and confirm no parameters have query_type: unknown without value guidance.</step>
+          <step order="2">Check that agents can reliably select valid values for getsearchsuggestions, getpartners, and similar endpoints.</step>
+        </manual-steps>
+      </verification>
+
+      <impact-check>
+        <affected-items>
+          <item-ref id="10">Expose OpenAPI parameter schemas for MCP tools</item-ref>
+          <item-ref id="12">Enrich OpenAPI tool descriptions with parameter summaries and response hints</item-ref>
+        </affected-items>
+        <notes>Completed features are FULL and TESTED; ensure parameter schemas are actionable for agents and users.</notes>
+      </impact-check>
+    </item>
+    <item id="19" type="bug" status="PENDING" priority="HIGH" complexity="M" security="false">
+      <title>Tool descriptions lack externalDomain guidance</title>
+      <branch>bug/item-19-tool-descriptions-lack-externaldomain-guidance</branch>
+      <justification>Tool descriptions do not mention the externalDomain, making it unclear to agents that they should call immich_getserverconfig to discover the correct domain for link construction. This leads to agents guessing or using defaults, which can break workflows.</justification>
+      <depends-on></depends-on>
+
+      <tasks>
+        <task id="19.1">Review all tool descriptions for references to externalDomain or server config discovery.</task>
+        <task id="19.2">Update tool description generation to include a hint about calling immich_getserverconfig for externalDomain when relevant.</task>
+        <task id="19.3">Add a regression test to ensure at least one tool description references externalDomain guidance.</task>
+        <task id="19.4">Update usage documentation to clarify the externalDomain discovery workflow for agents and users.</task>
+      </tasks>
+
+      <verification>
+        <manual-steps>
+          <step order="1">List all tools and confirm at least one description references externalDomain or server config discovery.</step>
+          <step order="2">Check that agents can reliably discover the correct domain for link construction via immich_getserverconfig.</step>
+        </manual-steps>
+      </verification>
+
+      <impact-check>
+        <affected-items>
+          <item-ref id="11">Add MCP usage guide with server instructions and workflow examples</item-ref>
+          <item-ref id="17">Expand initialize instructions with workflows, tool groups, and examples</item-ref>
+        </affected-items>
+        <notes>Completed features are FULL and TESTED; ensure documentation and tool descriptions are aligned for agent usability.</notes>
+      </impact-check>
+    </item>
 
   <archive>
     <item id="8" type="feature" status="DONE" priority="MEDIUM" complexity="L" security="true" archived="2026-02-16">
@@ -676,5 +1047,9 @@
     <entry date="2026-02-16">Items 16 implemented. Updated Docker image contents to load the claw2immich package at runtime.</entry>
     <entry date="2026-02-16">Archived items 8, 9, 10, 11, 12, 13, 15, 16.</entry>
     <entry date="2026-02-16">Update scan: refreshed architecture notes, fixed XML structure, and synced feature file mappings.</entry>
+    <entry date="2026-02-16">Added bug item 19: Tool descriptions lack externalDomain guidance.</entry>
+    <entry date="2026-02-16">Added bug item 20: query_type unknown for some parameters (e.g. getsearchsuggestions, getpartners).</entry>
+    <entry date="2026-02-16">Added feature item 21: Enable searchAssets/searchSmart endpoints.</entry>
+    <entry date="2026-02-16">Added bug item 18: Search assets blocked by capability check error.</entry>
   </changelog>
 </overview-features-bugs>

@@ -70,3 +70,20 @@ def register_prompts_and_resources(mcp) -> None:
             "Call with path_id and body fields for sharing options. "
             f"Album id: {album_id}."
         )
+
+    @mcp.prompt(title="Immich: Search assets")
+    def prompt_search_assets(query: str) -> str:
+        return (
+            "Locate the tool whose description starts with 'POST /api/search/assets'. "
+            "Use inputSchema to decide between query_ fields and a body payload. "
+            "Prefer body when the schema requires filters or query text. "
+            f"Search query: {query}."
+        )
+
+    @mcp.prompt(title="Immich: Smart search")
+    def prompt_search_smart(query: str) -> str:
+        return (
+            "Locate the tool whose description starts with 'POST /api/search/smart'. "
+            "Use inputSchema prefixes (query_/body) and provide the search query in body when required. "
+            f"Smart search query: {query}."
+        )

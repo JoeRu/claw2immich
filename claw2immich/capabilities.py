@@ -6,6 +6,21 @@ from .config import _get_config
 from .http_client import _probe, _request
 
 
+def _format_probe_failure(method: str, path: str, probe: dict[str, Any]) -> str:
+    status_code = probe.get("status_code")
+    if isinstance(status_code, int):
+        return f"Capability check failed (HTTP {status_code}) for {method} {path}"
+    error = probe.get("error")
+    detail = probe.get("detail")
+    if error and detail:
+        return f"Capability check failed: {error} ({detail})"
+    if error:
+        return f"Capability check failed: {error}"
+    if detail:
+        return f"Capability check failed: {detail}"
+    return "Immich server error during capability check"
+
+
 @lru_cache
 def _discover_user_profile() -> dict[str, Any]:
     profile = _request("GET", "/api/users/me", require_auth=True)
@@ -39,15 +54,8 @@ def _discover_capabilities() -> dict[str, dict[str, str | bool]]:
         )
         return capabilities
 
-    error = probe.get("error")
-    if error:
-        capabilities["get_current_user"]["reason"] = (
-            f"Capability check failed: {error}"
-        )
-        return capabilities
-
-    capabilities["get_current_user"]["reason"] = (
-        "Immich server error during capability check"
+    capabilities["get_current_user"]["reason"] = _format_probe_failure(
+        "GET", "/api/users/me", probe
     )
     return capabilities
 
@@ -68,18 +76,17 @@ def _discover_write_capability() -> dict[str, str | bool]:
             "reason": f"API key/token lacks permission for {method} {path}",
         }
 
-    error = probe.get("error")
-    if error:
+    if status_code == 400:
         return {
             "configured": True,
-            "allowed": False,
-            "reason": f"Capability check failed: {error}",
+            "allowed": True,
+            "reason": "Allowed (write probe returned validation error)",
         }
 
     return {
         "configured": True,
         "allowed": False,
-        "reason": "Immich server error during capability check",
+        "reason": _format_probe_failure(method, path, probe),
     }
 
 

@@ -32,7 +32,7 @@ Run code analysis in **update mode** as described in `CLAUDE-implementation-plan
    - Item warnings (stale, broken refs)
    - Count of changes made and items created
 7. **Update changelog** in `overview-features-bugs.xml`.
-8. **Lessons learned**: If any drift or stale items were found, add a note to the `lessons-learned` section in `overview.xml` about the importance of regular updates and potential improvements to prevent drift. Add or update `LESSONS_LEARNED.md` with a concise summary of lessons learned.
+8. **Lessons learned**: If any drift or stale items were found, add a note to the `lessons-learned` section in `overview.xml` about the importance of regular updates and potential improvements to prevent drift. Add or update `LESSONS_LEARNED.md` with a concise summary of lessons learned - of all Items inclusive the archived.
 
 ## Important
 
