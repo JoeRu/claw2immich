@@ -223,6 +223,8 @@ You can override env file locations:
 
 ## Docker
 
+### Build and run locally
+
 Build and run with Docker Compose:
 ```
 docker compose build
@@ -244,3 +246,48 @@ MCP server settings for Docker Compose:
 - `MCP_TRANSPORT` (default `sse` in compose; use `streamable-http` for HTTP)
 - `MCP_HOST` (default `0.0.0.0` in compose)
 - `MCP_PORT` (default `8000`; published as the host port)
+
+### Use pre-built images from GitHub Container Registry
+
+Pre-built Docker images are automatically published to GitHub Container Registry (GHCR) for every push to `main` and `develop` branches, as well as for releases.
+
+**Pull the image:**
+```bash
+# Latest build from main branch
+docker pull ghcr.io/joeru/claw2immich:latest
+
+# Latest build from develop branch
+docker pull ghcr.io/joeru/claw2immich:develop
+
+# Specific version (e.g., 0.1.0)
+docker pull ghcr.io/joeru/claw2immich:0.1.0
+```
+
+**Run the image:**
+```bash
+docker run -e IMMICH_BASE_URL=https://immich.example.com \
+           -e IMMICH_API_KEY=your-api-key \
+           -p 8000:8000 \
+           ghcr.io/joeru/claw2immich:latest
+```
+
+**Run with SSE transport (HTTP):**
+```bash
+docker run -e IMMICH_BASE_URL=https://immich.example.com \
+           -e IMMICH_API_KEY=your-api-key \
+           -e MCP_TRANSPORT=sse \
+           -e MCP_HOST=0.0.0.0 \
+           -p 8000:8000 \
+           ghcr.io/joeru/claw2immich:latest
+```
+
+**Run with read-only profile:**
+```bash
+docker run -e IMMICH_BASE_URL=https://immich.example.com \
+           -e IMMICH_API_KEY=your-readonly-api-key \
+           -e IMMICH_PROFILE=read_only \
+           -p 8000:8000 \
+           ghcr.io/joeru/claw2immich:latest
+```
+
+Images support multiple architectures (amd64, arm64) and are automatically selected based on your platform.

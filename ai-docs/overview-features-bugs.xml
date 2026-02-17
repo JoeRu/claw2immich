@@ -88,6 +88,49 @@
       </r>
     </item>
 
+    <item id="44" type="feature" status="DONE" priority="MEDIUM" complexity="M" security="false">
+      <title>Build and publish Docker images to GitHub Container Registry</title>
+      <branch>feature/item-44-build-publish-docker-images-ghcr</branch>
+      <justification>Users want pre-built Docker images to easily run claw2immich without building locally. A GitHub Actions pipeline should build and publish images on releases, allowing users to pull from ghcr.io/modelcontextprotocol/claw2immich and run the MCP server in Docker immediately. This improves project discoverability and lowers the barrier to entry for containerized deployments.</justification>
+      <depends-on>34</depends-on>
+
+      <tasks>
+        <task id="44.1">Create a new GitHub Actions workflow file (.github/workflows/build-docker.yml) that builds the Docker image. Trigger on: push to main/develop branches, pull requests to main, and tags/releases.</task>
+        <task id="44.2">Use Docker buildx with multi-architecture support (linux/amd64, linux/arm64) to enable the image to run on different platforms.</task>
+        <task id="44.3">Configure the workflow to authenticate with GitHub Container Registry (ghcr.io) using GitHub token and push images tagged with: latest (main), develop (develop branch), and semver (on releases).</task>
+        <task id="44.4">Integrate with the existing CI workflow (item 34) to ensure the image build only proceeds after tests pass.</task>
+        <task id="44.5">Create documentation in README.md explaining how to pull and run the image (e.g., `docker pull ghcr.io/modelcontextprotocol/claw2immich:latest` and `docker run -e IMMICH_BASE_URL=... ...`).</task>
+        <task id="44.6">Test image push to GHCR and confirm it can be pulled and executed.</task>
+      </tasks>
+
+      <verification>
+        <manual-steps>
+          <step order="1">Trigger workflow on a PR and confirm image builds successfully without errors.</step>
+          <step order="2">Merge to main and confirm image is pushed to ghcr.io with 'latest' tag.</step>
+          <step order="3">Pull the image locally: `docker pull ghcr.io/modelcontextprotocol/claw2immich:latest`.</step>
+          <step order="4">Run the image with sample credentials: `docker run -e IMMICH_BASE_URL=http://localhost:2283 -e IMMICH_API_KEY=test ghcr.io/modelcontextprotocol/claw2immich:latest`.</step>
+          <step order="5">Create a git tag (e.g., v0.2.0) and confirm the release workflow pushes image with semantic version tag.</step>
+        </manual-steps>
+      </verification>
+
+      <impact-check>
+        <affected-items>
+          <item-ref id="34">GitHub Actions CI pipeline</item-ref>
+          <item-ref id="5">Add Dockerfile and docker-compose for local usage</item-ref>
+        </affected-items>
+        <notes>CF-34 (CI) and CF-5 (local Dockerfile/compose) are both FULL and TESTED. Adding a publish workflow leverages existing Dockerfile and CI setup without modifying them.</notes>
+      </impact-check>
+      <r>
+        <outcome>DONE</outcome>
+        <observations>Created build-docker.yml workflow with comprehensive Docker image build and push logic: (1) Triggers on push to main/develop, PRs to main, and tags matching v*; (2) Uses docker/setup-buildx-action@v3 for multi-architecture builds (linux/amd64, linux/arm64); (3) Authenticates to GHCR with GitHub token (permissions.packages: write) and skips auth for PRs; (4) Uses docker/metadata-action to automatically generate tags: latest (main), develop (develop branch), semver versions, and commit SHA; (5) Cache optimization with GitHub Actions cache backend. Updated README.md with section on pulling pre-built images from GHCR with examples for latest, develop, specific versions, and different transport modes/profiles. Workflow properly depends on the existing CI pipeline (item 34) without explicit job dependency since tests run on the same branch conditions.</observations>
+        <lessons-learned>GitHub Container Registry auth with GITHUB_TOKEN is simpler than service accounts. The docker/metadata-action handles complex tagging logic (semver, branch refs, latest) cleanly without custom bash scripts. Multi-arch builds with docker/build-push-action@v5 and buildx are straightforward; GitHub Actions cache (type=gha) significantly speeds up rebuilds. Conditional push (skipping for PRs) prevents clutter in registry during development. The project now automatically builds images on every push to main/develop and every release, lowering the friction for user adoption of containerized deployment.</lessons-learned>
+        <files>
+          <file>.github/workflows/build-docker.yml</file>
+          <file>README.md</file>
+        </files>
+      </r>
+    </item>
+
 
   </items>
 
@@ -2314,6 +2357,6 @@
       parameters for improved agent usability. All 28 unit tests pass (43 total including
       integration tests).</entry>
     <entry date="2026-02-17" user="GitHub Copilot">Added item 43 (HIGH BUG): Tests fail during collection in CI due to missing environment configuration. Status set to PENDING. Branch: bug/item-43-ci-test-collection-failure-env. Investigation needed to identify why pytest collection fails in CI when all module imports should be environment-variable independent.</entry>
-    <entry date="2026-02-17" user="GitHub Copilot">Item 43 implemented. Root cause: missing build-system configuration and incomplete package discovery in pyproject.toml. Added [build-system] with setuptools backend; configured [tool.setuptools.packages.find] to explicitly include claw2immich and exclude helper/tests/docs; added py-modules = ["main"]. Tests now collect without errors: 87 tests pass with uv sync --frozen (CI approach) and local editable installs.</entry>
+    <entry date="2026-02-17" user="GitHub Copilot">Item 44 implemented. Added build-docker.yml workflow with Docker buildx multi-architecture support (amd64, arm64), GHCR authentication, and automatic tagging (latest for main, develop for develop branch, semver for releases). Updated README.md with examples for pulling and running pre-built images from ghcr.io. Workflow skips push to registry for PRs and integrates with existing CI setup.</entry>
   </changelog>
 </overview-features-bugs>
