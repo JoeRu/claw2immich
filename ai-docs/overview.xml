@@ -4,7 +4,7 @@
     <title>claw2immich</title>
     <version>0.1.0</version>
     <analyzed>2026-02-15</analyzed>
-    <updated>2026-02-16</updated>
+    <updated>2026-02-17</updated>
   </metadata>
 
   <architecture>
@@ -215,9 +215,210 @@
         <file>ai-docs/overview-features-bugs.xml</file>
       </files>
     </feature>
+    <feature id="CF-17" completed="2026-02-16" source-item="17" completeness="FULL" test-coverage="TESTED">
+      <title>Expand initialize instructions with workflows, tool groups, and examples</title>
+      <description>Expanded server initialize instructions with externalDomain guidance, workflow groups, and an example string; updated usage guide and README to align.</description>
+      <files>
+        <file>claw2immich/constants.py</file>
+        <file>docs/usage-guide.md</file>
+        <file>README.md</file>
+      </files>
+    </feature>
+    <feature id="CF-18" completed="2026-02-16" source-item="18" completeness="FULL" test-coverage="TESTED">
+      <title>Blocked_tools reason too generic for capability errors</title>
+      <description>Capability probe errors now include HTTP status or network error details in blocked tool reasons; added unit tests covering 403, 500, and timeout-style failures.</description>
+      <files>
+        <file>claw2immich/capabilities.py</file>
+        <file>docs/usage-guide.md</file>
+        <file>README.md</file>
+        <file>tests/test_capabilities.py</file>
+      </files>
+    </feature>
+    <feature id="CF-22" completed="2026-02-16" source-item="22" completeness="FULL" test-coverage="TESTED">
+      <title>Fetch OpenAPI spec for server version</title>
+      <description>OpenAPI spec fetch now checks server health, reads version, and loads the versioned spec from GitHub with unit coverage.</description>
+      <files>
+        <file>claw2immich/openapi.py</file>
+        <file>docs/usage-guide.md</file>
+        <file>README.md</file>
+        <file>tests/test_openapi_versioned_spec.py</file>
+      </files>
+    </feature>
+    <feature id="CF-23" completed="2026-02-16" source-item="23" completeness="FULL" test-coverage="TESTED">
+      <title>searchAssets/searchSmart missing and 400 errors in tool_access_report</title>
+      <description>Read-only POST endpoints are no longer blocked by write probes; write probe 400s are treated as validation errors, and tool_access_report uses permission hints to gate write tools.</description>
+      <files>
+        <file>claw2immich/capabilities.py</file>
+        <file>claw2immich/openapi.py</file>
+        <file>claw2immich/tooling.py</file>
+        <file>docs/usage-guide.md</file>
+      </files>
+    </feature>
+    <feature id="CF-24" completed="2026-02-16" source-item="24" completeness="FULL" test-coverage="TESTED">
+      <title>Add searchAssets/searchSmart guidance to prompts</title>
+      <description>Added prompts guiding searchAssets/searchSmart usage with tool selection by description and inputSchema hints.</description>
+      <files>
+        <file>claw2immich/prompts.py</file>
+      </files>
+    </feature>
+    <feature id="CF-25" completed="2026-02-16" source-item="25" completeness="FULL" test-coverage="TESTED">
+      <title>Dynamic externalDomain in initialize instructions</title>
+      <description>Initialize instructions now inject the resolved externalDomain when available, with a fallback hint when missing.</description>
+      <files>
+        <file>claw2immich/constants.py</file>
+        <file>claw2immich/mcp_app.py</file>
+        <file>tests/test_instructions.py</file>
+      </files>
+    </feature>
+    <feature id="CF-27" completed="2026-02-17" source-item="27" completeness="FULL" test-coverage="TESTED">
+      <title>Add configuration profiles for permission-based tool access levels</title>
+      <description>Implemented configuration profiles (read_only, read_write, full_scope) with env-based loading via IMMICH_PROFILE, profile-aware tool filtering, and comprehensive documentation.</description>
+      <files>
+        <file>claw2immich/config.py</file>
+        <file>claw2immich/tooling.py</file>
+        <file>README.md</file>
+        <file>docs/usage-guide.md</file>
+      </files>
+    </feature>
+    <feature id="CF-29" completed="2026-02-17" source-item="29" completeness="FULL" test-coverage="TESTED">
+      <title>_request() silently swallows exceptions into error dicts</title>
+      <description>Defined exception hierarchy (ImmichAPIError, ImmichNetworkError, ImmichConfigError); updated _request() to raise exceptions; updated all callers with proper error handling and comprehensive unit tests.</description>
+      <files>
+        <file>claw2immich/http_client.py</file>
+        <file>claw2immich/tooling.py</file>
+        <file>claw2immich/openapi.py</file>
+        <file>claw2immich/mcp_app.py</file>
+        <file>claw2immich/capabilities.py</file>
+        <file>tests/test_http_client.py</file>
+      </files>
+    </feature>
+    <feature id="CF-30" completed="2026-02-17" source-item="30" completeness="FULL" test-coverage="TESTED">
+      <title>Dockerfile uses pip instead of uv, ignores lockfile</title>
+      <description>Installed uv in the Docker image; replaced hardcoded pip install with uv sync --frozen to use lockfile; verified container builds and starts correctly.</description>
+      <files>
+        <file>Dockerfile</file>
+      </files>
+    </feature>
+    <feature id="CF-31" completed="2026-02-17" source-item="31" completeness="FULL" test-coverage="TESTED">
+      <title>Unit test coverage gaps — config, http_client, mcp_app, prompts at 0%</title>
+      <description>Created test_config.py (19 tests), test_mcp_app.py (8 tests), test_prompts.py (3 tests) with comprehensive coverage for config validation, port ranges, profile selection, and external domain resolution.</description>
+      <files>
+        <file>tests/test_config.py</file>
+        <file>tests/test_prompts.py</file>
+        <file>tests/test_mcp_app.py</file>
+        <file>tests/test_dedup_and_schema.py</file>
+      </files>
+    </feature>
+    <feature id="CF-32" completed="2026-02-17" source-item="32" completeness="FULL" test-coverage="TESTED">
+      <title>Duplicate tool-name deduplication logic in tooling.py</title>
+      <description>Extracted _deduplicate_name() helper function to replace duplicate code blocks in _openapi_tool_access and _register_openapi_tools; added 4 unit tests.</description>
+      <files>
+        <file>claw2immich/tooling.py</file>
+        <file>tests/test_dedup_and_schema.py</file>
+      </files>
+    </feature>
+    <feature id="CF-33" completed="2026-02-17" source-item="33" completeness="FULL" test-coverage="TESTED">
+      <title>Add structured logging for observability</title>
+      <description>Added logging.getLogger() to all claw2immich modules; wired MCP_LOG_LEVEL for log level configuration; added key event logging for startup, capability discovery, and HTTP errors.</description>
+      <files>
+        <file>main.py</file>
+        <file>claw2immich/http_client.py</file>
+        <file>claw2immich/openapi.py</file>
+        <file>claw2immich/capabilities.py</file>
+        <file>claw2immich/tooling.py</file>
+        <file>claw2immich/mcp_app.py</file>
+      </files>
+    </feature>
+    <feature id="CF-34" completed="2026-02-17" source-item="34" completeness="FULL" test-coverage="TESTED">
+      <title>Add GitHub Actions CI pipeline</title>
+      <description>Created .github/workflows/ci.yml workflow with Python 3.12 setup, pytest coverage reporting, and CI badge added to README.</description>
+      <files>
+        <file>.github/workflows/ci.yml</file>
+        <file>pyproject.toml</file>
+        <file>README.md</file>
+      </files>
+    </feature>
+    <feature id="CF-35" completed="2026-02-17" source-item="35" completeness="FULL" test-coverage="TESTED">
+      <title>No port range validation in config.py</title>
+      <description>Added port range check (0 or 1-65535) in get_mcp_settings() with descriptive error; added 5 unit tests covering boundary values.</description>
+      <files>
+        <file>claw2immich/config.py</file>
+        <file>tests/test_config.py</file>
+      </files>
+    </feature>
+    <feature id="CF-36" completed="2026-02-17" source-item="36" completeness="FULL" test-coverage="TESTED">
+      <title>_permission_is_read() does not handle None permission — over-blocks POST endpoints</title>
+      <description>Updated write operation detection to not block endpoints when permission metadata is absent; added comprehensive unit tests for all permission filtering scenarios.</description>
+      <files>
+        <file>claw2immich/tooling.py</file>
+        <file>tests/test_permission_filtering.py</file>
+      </files>
+    </feature>
+    <feature id="CF-37" completed="2026-02-17" source-item="37" completeness="FULL" test-coverage="TESTED">
+      <title>Nested $ref schemas not resolved recursively in openapi.py</title>
+      <description>Updated _resolve_schema() with recursive resolution, cycle detection via seen set, and 10-level depth limit; added 8 comprehensive unit tests.</description>
+      <files>
+        <file>claw2immich/openapi.py</file>
+        <file>tests/test_dedup_and_schema.py</file>
+      </files>
+    </feature>
+    <feature id="CF-38" completed="2026-02-17" source-item="38" completeness="FULL" test-coverage="TESTED">
+      <title>Warn when credentials are sent over plain HTTP</title>
+      <description>Added HTTP warning check in _request() when credentials are present; emits logger.warning with suppression flag IMMICH_ALLOW_HTTP; added 3 unit tests.</description>
+      <files>
+        <file>claw2immich/http_client.py</file>
+        <file>tests/test_http_client.py</file>
+      </files>
+    </feature>
+    <feature id="CF-39" completed="2026-02-17" source-item="39" completeness="FULL" test-coverage="TESTED">
+      <title>Resolve request body $ref schemas into individual typed parameters</title>
+      <description>Added _operation_request_body_field_specs() to resolve $ref schemas; updated tool generation to expose individual body_* parameters with types and required flags; maintained backward compatibility.</description>
+      <files>
+        <file>claw2immich/openapi.py</file>
+        <file>claw2immich/tooling.py</file>
+      </files>
+    </feature>
+    <feature id="CF-40" completed="2026-02-17" source-item="40" completeness="FULL" test-coverage="TESTED">
+      <title>Replace deprecated get_server_info with getServerVersion</title>
+      <description>Removed get_server_info function; getServerVersion via /api/server/version remains as the replacement.</description>
+      <files>
+        <file>claw2immich/tooling.py</file>
+        <file>README.md</file>
+        <file>tests/test_mcp_client.py</file>
+      </files>
+    </feature>
+    <feature id="CF-41" completed="2026-02-17" source-item="41" completeness="FULL" test-coverage="TESTED">
+      <title>Add description text to all 8 MCP prompts</title>
+      <description>Added description parameter to all 8 @mcp.prompt() decorators with action-oriented descriptions matching existing title style.</description>
+      <files>
+        <file>claw2immich/prompts.py</file>
+        <file>tests/test_prompts.py</file>
+      </files>
+    </feature>
+    <feature id="CF-42" completed="2026-02-17" source-item="42" completeness="FULL" test-coverage="TESTED">
+      <title>Embed workflow hints directly in server instructions instead of relying on resources</title>
+      <description>Embedded URL patterns, parameter naming conventions, search workflow hints, and profile info directly into server instructions while keeping usage guide available as fallback.</description>
+      <files>
+        <file>claw2immich/constants.py</file>
+        <file>tests/test_instructions.py</file>
+      </files>
+    </feature>
   </completed-features>
+
+  <completed-utilities>
+    <utility>
+      <title>Helper utilities for development and maintenance</title>
+      <description>Standalone scripts for MCP tool access reporting, item archival automation, and development workflows.</description>
+      <files>
+        <file>helper/mcp_tool_access_report.py</file>
+        <file>helper/archive_items.py</file>
+        <file>helper/archive_items.ps1</file>
+      </files>
+    </utility>
+  </completed-utilities>
 
   <lessons-learned>
     <note date="2026-02-16">Keep architecture notes and file mappings current after refactors to prevent drift and stale XML structure.</note>
+    <note date="2026-02-17">Regular update scans verify XMLs match codebase reality and catch orphaned items or new features; helper utilities don't need feature tracking as they're dev-only tools.</note>
   </lessons-learned>
 </overview>

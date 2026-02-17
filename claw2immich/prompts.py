@@ -18,7 +18,7 @@ def register_prompts_and_resources(mcp) -> None:
         """Return the MCP usage guide markdown."""
         return _load_usage_guide()
 
-    @mcp.prompt(title="Immich: Get image")
+    @mcp.prompt(title="Immich: Get image", description="Retrieve a single image or video asset by its ID.")
     def prompt_get_image(asset_id: str) -> str:
         return (
             "Find the tool whose description starts with 'GET /api/assets/{id}'. "
@@ -26,7 +26,7 @@ def register_prompts_and_resources(mcp) -> None:
             f"Asset id: {asset_id}."
         )
 
-    @mcp.prompt(title="Immich: Find person")
+    @mcp.prompt(title="Immich: Find person", description="Search for a person by name using people or face endpoints.")
     def prompt_find_person(person_name: str) -> str:
         return (
             "Locate a tool with 'people' or 'person' in the description (often a "
@@ -36,7 +36,7 @@ def register_prompts_and_resources(mcp) -> None:
             f"Target name: {person_name}."
         )
 
-    @mcp.prompt(title="Immich: Find location")
+    @mcp.prompt(title="Immich: Find location", description="Search for assets or places by location name.")
     def prompt_find_location(location_name: str) -> str:
         return (
             "Locate a tool with 'locations' or 'map' in the description. "
@@ -44,7 +44,7 @@ def register_prompts_and_resources(mcp) -> None:
             f"Target location: {location_name}."
         )
 
-    @mcp.prompt(title="Immich: Newest photo")
+    @mcp.prompt(title="Immich: Newest photo", description="Fetch the most recent photos sorted by date.")
     def prompt_newest_photo(limit: int = 1) -> str:
         return (
             "Locate a tool that lists assets (description includes '/api/assets' or "
@@ -53,7 +53,7 @@ def register_prompts_and_resources(mcp) -> None:
             f"Limit: {limit}."
         )
 
-    @mcp.prompt(title="Immich: Upload photo")
+    @mcp.prompt(title="Immich: Upload photo", description="Upload a photo or video file to the Immich library.")
     def prompt_upload_photo(filename: str) -> str:
         return (
             "Locate a tool with description starting 'POST /api/assets' or "
@@ -62,7 +62,7 @@ def register_prompts_and_resources(mcp) -> None:
             f"Filename: {filename}."
         )
 
-    @mcp.prompt(title="Immich: Share album")
+    @mcp.prompt(title="Immich: Share album", description="Share an existing album with other users or via link.")
     def prompt_share_album(album_id: str) -> str:
         return (
             "Locate a tool with description 'POST /api/albums/{id}/share' or "
@@ -71,7 +71,7 @@ def register_prompts_and_resources(mcp) -> None:
             f"Album id: {album_id}."
         )
 
-    @mcp.prompt(title="Immich: Search assets")
+    @mcp.prompt(title="Immich: Search assets", description="Search assets using metadata filters and text queries.")
     def prompt_search_assets(query: str) -> str:
         return (
             "Locate the tool whose description starts with 'POST /api/search/assets'. "
@@ -80,7 +80,7 @@ def register_prompts_and_resources(mcp) -> None:
             f"Search query: {query}."
         )
 
-    @mcp.prompt(title="Immich: Smart search")
+    @mcp.prompt(title="Immich: Smart search", description="Run a CLIP-based smart search using natural language queries.")
     def prompt_search_smart(query: str) -> str:
         return (
             "Locate the tool whose description starts with 'POST /api/search/smart'. "

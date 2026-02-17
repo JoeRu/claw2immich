@@ -180,14 +180,6 @@ def ping_server() -> Any:
         return {"error": str(exc)}
 
 
-def get_server_info() -> Any:
-    """Fetch public server info."""
-    try:
-        return _request("GET", "/api/server-info")
-    except Exception as exc:
-        return {"error": str(exc)}
-
-
 def get_server_version() -> Any:
     """Fetch Immich server version information."""
     try:
@@ -212,7 +204,6 @@ def tool_access_report() -> dict[str, Any]:
         # "openapi_summary",
         # "list_openapi_paths",
         "ping_server",
-        "get_server_info",
         "get_server_version",
         "tool_access_report",
         "write_capability_report",
@@ -246,7 +237,6 @@ def _register_tools(mcp) -> None:
         # openapi_summary,
         # list_openapi_paths,
         ping_server,
-        get_server_info,
         get_server_version,
         tool_access_report,
         write_capability_report,

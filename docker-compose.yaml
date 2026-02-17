@@ -6,6 +6,12 @@ services:
       IMMICH_BASE_URL: ${IMMICH_BASE_URL:-http://host.docker.internal:2283}
       IMMICH_API_KEY: ${IMMICH_API_KEY:-}
       IMMICH_API_TOKEN: ${IMMICH_API_TOKEN:-}
+      # IMMICH_PROFILE restricts tool exposure based on permission level (optional)
+      # Options: read_only (search/browse only), read_write (assets/albums), full_scope (all including admin)
+      # Uncomment to limit access level (default: no profile restriction, depends on API key permissions)
+      # IMMICH_PROFILE: ${IMMICH_PROFILE:-read_only}
+      # IMMICH_PROFILE: ${IMMICH_PROFILE:-read_write}
+      # IMMICH_PROFILE: ${IMMICH_PROFILE:-full_scope}
       IMMICH_WRITE_PROBE_PATH: ${IMMICH_WRITE_PROBE_PATH:-}
       IMMICH_WRITE_PROBE_METHOD: ${IMMICH_WRITE_PROBE_METHOD:-POST}
       MCP_TRANSPORT: ${MCP_TRANSPORT:-sse}

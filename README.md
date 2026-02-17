@@ -11,7 +11,6 @@ claw2immich is a Python MCP (Model Context Protocol) server that exposes selecte
 
 ## Available tools
 - `ping_server`
-- `get_server_info`
 - `get_server_version`
 - `tool_access_report`
 - `write_capability_report`
@@ -76,7 +75,7 @@ Access profiles provide predefined permission levels to simplify API key managem
 **Typical tools exposed:**
 - `immich_getAllAssets`, `immich_getAssetById`, `immich_searchAssets`
 - `immich_getAllAlbums`, `immich_getAlbumInfo`
-- `immich_getMyUserInfo`, `immich_getServerInfo`
+- `immich_getMyUserInfo`, `immich_getServerVersion`
 - All GET endpoints for reading data
 
 **Blocked tools:**

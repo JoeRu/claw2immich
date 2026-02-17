@@ -280,7 +280,6 @@ class BaseMCPClientTests(unittest.IsolatedAsyncioTestCase):
         tool_names = await self._with_session(run)
         expected = {
             "ping_server",
-            "get_server_info",
             "get_server_version",
             "tool_access_report",
             "write_capability_report",

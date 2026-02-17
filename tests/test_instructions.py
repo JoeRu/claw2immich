@@ -12,3 +12,12 @@ class InstructionsTests(unittest.TestCase):
         instructions = build_server_instructions(None)
         self.assertIn("External domain for link building:", instructions)
         self.assertIn("GET /api/server-config", instructions)
+
+    def test_instructions_contain_workflow_hints(self) -> None:
+        instructions = build_server_instructions(None)
+        self.assertIn("path_<name>", instructions)
+        self.assertIn("query_<name>", instructions)
+        self.assertIn("POST /api/search/smart", instructions)
+        self.assertIn("tool_access_report", instructions)
+        self.assertIn("IMMICH_PROFILE", instructions)
+        self.assertIn("/photos/<asset-id>", instructions)
