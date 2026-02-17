@@ -49,6 +49,45 @@
       </impact-check>
     </item>
 
+    <item id="43" type="bug" status="DONE" priority="HIGH" complexity="S" security="false">
+      <title>Tests fail during collection in CI due to missing environment configuration</title>
+      <branch>bug/item-43-ci-test-collection-failure-env</branch>
+      <justification>The CI pipeline fails during pytest collection phase (ERROR during collection, tests cannot be discovered). This likely occurs because environment variables required for module initialization are missing in the CI environment. The test files use patch.dict(os.environ, ...) to inject credentials within test functions, but if any module-level code or imports require environment variables, collection will fail before tests can run.</justification>
+      <depends-on></depends-on>
+
+      <tasks>
+        <task id="43.1">Identify which test file(s) fail during collection and determine the specific error message (run pytest tests/ -v locally and in CI with verbose error output).</task>
+        <task id="43.2">Audit all imports in test files and the claw2immich package to ensure no module-level code calls environment-dependent functions (e.g., _get_config()) at import time.</task>
+        <task id="43.3">Verify that .env file is not required just to import the package; environment variables should only be needed when making actual requests.</task>
+        <task id="43.4">If module-level validation is necessary (e.g., port range checks), ensure defaults are always valid and only raise errors when called by actual code, not at import time.</task>
+        <task id="43.5">Update CI pipeline to set minimal default environment variables (e.g., IMMICH_BASE_URL=http://localhost:2283, IMMICH_API_KEY=) if needed to unblock collection, or update test configuration to mock environment earlier.</task>
+      </tasks>
+
+      <verification>
+        <manual-steps>
+          <step order="1">Run pytest tests/ -v locally without any .env file present and confirm all tests collect and pass.</step>
+          <step order="2">Check CI logs for the specific collection error; trace the error back to the failing import.</step>
+          <step order="3">Confirm tests now run in CI with `uv run pytest tests/ -v -m "not integration"` without collection errors.</step>
+        </manual-steps>
+      </verification>
+
+      <impact-check>
+        <affected-items>
+          <item-ref id="34">GitHub Actions CI pipeline</item-ref>
+          <item-ref id="31">Unit test coverage gaps</item-ref>
+        </affected-items>
+        <notes>CF-34 (CI added) and CF-31 (unit tests added) are FULL and TESTED in local dev, but collection fails in CI environment. The fix likely involves validating that tests don't require environment variables at import time.</notes>
+      </impact-check>
+      <r>
+        <outcome>DONE</outcome>
+        <observations>Root cause was missing build-system configuration and incomplete package discovery in pyproject.toml. The claw2immich package was not being installed in editable mode due to setuptools detecting multiple top-level packages (claw2immich and helper in flat layout). Fixed by: (1) Adding [build-system] with setuptools backend, (2) Configuring [tool.setuptools.packages.find] to explicitly include only claw2immich and exclude helper/tests/docs, (3) Adding [tool.setuptools] py-modules = ["main"] to make main.py importable. Tests now collect without errors: 87 tests pass with `uv sync --frozen` (CI approach) and local editable installs. No environment variables needed for test collection.</observations>
+        <lessons-learned>Build configuration in pyproject.toml is critical for editable installs; flat layouts with multiple directories can confuse setuptools autodiscovery. The project structure (claw2immich package + main.py entry point + helper scripts) requires explicit configuration to avoid setuptools treating helper/ as a package. Build-system declaration ensures consistent behavior across platforms and CI environments.</lessons-learned>
+        <files>
+          <file>pyproject.toml</file>
+        </files>
+      </r>
+    </item>
+
 
   </items>
 
@@ -2274,5 +2313,7 @@
       IMMICH_ALLOW_HTTP suppression flag; resolved request body $ref schemas into individual typed
       parameters for improved agent usability. All 28 unit tests pass (43 total including
       integration tests).</entry>
+    <entry date="2026-02-17" user="GitHub Copilot">Added item 43 (HIGH BUG): Tests fail during collection in CI due to missing environment configuration. Status set to PENDING. Branch: bug/item-43-ci-test-collection-failure-env. Investigation needed to identify why pytest collection fails in CI when all module imports should be environment-variable independent.</entry>
+    <entry date="2026-02-17" user="GitHub Copilot">Item 43 implemented. Root cause: missing build-system configuration and incomplete package discovery in pyproject.toml. Added [build-system] with setuptools backend; configured [tool.setuptools.packages.find] to explicitly include claw2immich and exclude helper/tests/docs; added py-modules = ["main"]. Tests now collect without errors: 87 tests pass with uv sync --frozen (CI approach) and local editable installs.</entry>
   </changelog>
 </overview-features-bugs>

@@ -1,3 +1,7 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "claw2immich"
 version = "0.1.0"
@@ -15,6 +19,14 @@ dev = [
     "pytest-timeout>=2.4.0",
     "pytest-cov>=6.0.0",
 ]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["claw2immich*"]
+exclude = ["tests*", "helper*", "docs*", "ai-docs*", ".github*"]
+
+[tool.setuptools]
+py-modules = ["main"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
