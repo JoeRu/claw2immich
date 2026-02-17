@@ -4,7 +4,10 @@
       "Bash(uv run pytest:*)",
       "Bash(uv run python -m pytest:*)",
       "Bash(uv run:*)",
-      "Bash(uv add:*)"
+      "Bash(uv add:*)",
+      "Bash(wc:*)",
+      "Bash(grep:*)",
+      "Bash(python -c:*)"
     ]
   }
 }

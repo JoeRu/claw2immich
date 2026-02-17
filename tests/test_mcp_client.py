@@ -355,7 +355,7 @@ class BaseMCPClientTests(unittest.IsolatedAsyncioTestCase):
         checks = {
             "path": "path_",
             "query": "query_",
-            "body": "body",
+            "body": "body_",  # Changed to body_ to match resolved body field parameters
         }
         for key, prefix in checks.items():
             if not presence.get(key):
@@ -369,7 +369,11 @@ class BaseMCPClientTests(unittest.IsolatedAsyncioTestCase):
                 if not isinstance(properties, dict):
                     continue
                 if key == "body":
-                    if "body" in properties:
+                    # Check for body_* parameters (resolved from $ref schemas)
+                    # or legacy "body" parameter
+                    if "body" in properties or any(
+                        name.startswith(prefix) for name in properties.keys()
+                    ):
                         found = True
                         break
                 else:

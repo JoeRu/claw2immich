@@ -2,7 +2,7 @@
 <overview-features-bugs>
   <metadata>
     <created>2026-02-15</created>
-    <updated>2026-02-16</updated>
+    <updated>2026-02-17</updated>
   </metadata>
 
   <items>
@@ -310,6 +310,504 @@
         <notes>Completed features are FULL and TESTED; keep documentation aligned with initialize guidance and tool descriptions.</notes>
       </impact-check>
     </item>
+    <item id="27" type="feature" status="DONE" priority="MEDIUM" complexity="M" security="false">
+      <title>Add configuration profiles for permission-based tool access levels</title>
+      <branch>feature/item-27-configuration-profiles-permission-levels</branch>
+      <justification>Users need predefined access profiles (read-only, read-write, full-scope) to simplify API key permission management and reduce misconfiguration risk. Profiles map common use cases to required Immich API permissions and tool subsets.</justification>
+      <depends-on></depends-on>
+
+      <tasks>
+        <task id="27.1">Define profile schema with read-only, read-write, and full-scope profile types in configuration</task>
+        <task id="27.2">Implement profile loading from environment variables or config file (IMMICH_PROFILE=read_only|read_write|full_scope)</task>
+        <task id="27.3">Map each profile to required Immich API permissions (asset.read, album.create, admin.write, etc.)</task>
+        <task id="27.4">Filter tool registration based on active profile in addition to existing capability probes</task>
+        <task id="27.5">Document profiles in README.md with permission requirements, typical tools, and use cases</task>
+        <task id="27.6">Provide example mcporter.json snippets for each profile with tool lists and permission arrays</task>
+        <task id="27.7">Add profile selection guidance to usage guide and initialize instructions</task>
+      </tasks>
+
+      <verification>
+        <manual-steps>
+          <step order="1">Start MCP server with IMMICH_PROFILE=read_only and confirm only read tools are exposed</step>
+          <step order="2">Switch to IMMICH_PROFILE=read_write and confirm write tools (upload, update, create) are available</step>
+          <step order="3">Switch to IMMICH_PROFILE=full_scope and confirm admin tools (maintenance, API key management, user admin) are available</step>
+          <step order="4">Review README.md and confirm profile documentation includes permission lists and mcporter.json examples</step>
+        </manual-steps>
+      </verification>
+
+      <impact-check>
+        <affected-items>
+          <item-ref id="CF-1">Implement MCP server for Immich REST API</item-ref>
+          <item-ref id="CF-2">Filter MCP tools by API key permissions</item-ref>
+        </affected-items>
+        <notes>CF-1 and CF-2 are FULL completeness and TESTED coverage. Profile filtering adds a configuration layer on top of existing permission filtering; ensure backward compatibility when no profile is specified (current behavior should remain default).</notes>
+      </impact-check>
+      <r>
+        <outcome>DONE</outcome>
+        <observations>Implemented configuration profiles (read_only, read_write, full_scope) with env-based loading via IMMICH_PROFILE, profile-aware tool filtering in tooling.py, and comprehensive documentation in README and usage guide. Profiles layer on top of existing capability probes for additional access control. All profile configuration tests passed.</observations>
+        <lessons-learned>Profile filtering provides a convenient policy layer without replacing runtime capability probes, ensuring backward compatibility when IMMICH_PROFILE is unset.</lessons-learned>
+        <files>
+          <file>claw2immich/config.py</file>
+          <file>claw2immich/tooling.py</file>
+          <file>README.md</file>
+          <file>docs/usage-guide.md</file>
+          <file>ai-docs/overview-features-bugs.xml</file>
+        </files>
+      </r>
+    </item>
+    <item id="28" type="refactoring" status="PENDING" priority="MEDIUM" complexity="S" security="false">
+      <title>Add example profiles in docker-compose.yml for IMMICH_PROFILE configuration</title>
+      <branch>refactoring/item-28-add-profile-examples-docker-compose</branch>
+      <justification>docker-compose.yml should demonstrate profile configuration with commented examples for read_only, read_write, and full_scope to help users understand available access levels and simplify setup.</justification>
+      <depends-on>27</depends-on>
+
+      <tasks>
+        <task id="28.1">Add commented profile examples in docker-compose.yml environment section showing read_only, read_write, and full_scope options</task>
+        <task id="28.2">Include brief inline comments explaining each profile's typical use case</task>
+        <task id="28.3">Ensure IMMICH_PROFILE env var follows the same pattern as other optional vars</task>
+      </tasks>
+
+      <verification>
+        <manual-steps>
+          <step order="1">Review docker-compose.yml and confirm profile examples are clear and properly formatted</step>
+          <step order="2">Verify that uncommented default behavior (no profile) remains unchanged</step>
+        </manual-steps>
+      </verification>
+
+      <impact-check>
+        <affected-items>
+          <item-ref id="27">Add configuration profiles for permission-based tool access levels</item-ref>
+          <item-ref id="CF-5">Add Dockerfile and docker-compose for local usage</item-ref>
+        </affected-items>
+        <notes>Item 27 is DONE with profile feature implementation; CF-5 established docker-compose baseline. This refactoring only adds documentation examples without changing runtime behavior.</notes>
+      </impact-check>
+    </item>
+    <item id="29" type="bug" status="DONE" priority="HIGH" complexity="S" security="false">
+      <title>_request() silently swallows exceptions into error dicts</title>
+      <branch>bug/item-29-request-silently-swallows-exceptions</branch>
+      <justification>_request() in http_client.py catches all exceptions (HTTPStatusError, RequestError, ValueError) and returns error dicts instead of raising. Callers cannot distinguish a legitimate API response from an error without checking for an "error" key, which is fragile and has already caused silent failures in capability discovery and tool execution.</justification>
+      <depends-on></depends-on>
+
+      <tasks>
+        <task id="29.1">Define a small exception hierarchy (ImmichAPIError, ImmichNetworkError, ImmichConfigError) in a new exceptions module or in http_client.py.</task>
+        <task id="29.2">Update _request() to raise these exceptions instead of returning error dicts.</task>
+        <task id="29.3">Update all callers of _request() to handle the new exceptions appropriately.</task>
+        <task id="29.4">Add unit tests for each error path in _request().</task>
+      </tasks>
+
+      <verification>
+        <manual-steps>
+          <step order="1">Start MCP server with invalid credentials and confirm errors propagate as exceptions with clear messages.</step>
+          <step order="2">Run pytest tests/ -v and confirm all tests pass.</step>
+        </manual-steps>
+      </verification>
+
+      <impact-check>
+        <affected-items>
+          <item-ref id="1">Implement MCP server for Immich REST API</item-ref>
+          <item-ref id="8">Expose Immich OpenAPI endpoints as MCP tools with permission filtering</item-ref>
+        </affected-items>
+        <notes>CF-1 and CF-8 are FULL and TESTED. Changing error handling requires updating all _request() callers; ensure tool execution still returns user-friendly error messages.</notes>
+      </impact-check>
+      <r>
+        <outcome>DONE</outcome>
+        <observations>Defined exception hierarchy (ImmichAPIError, ImmichNetworkError, ImmichConfigError) in http_client.py; updated _request() to raise exceptions instead of returning error dicts; updated all callers (tooling.py, openapi.py, mcp_app.py, capabilities.py) to handle exceptions; added comprehensive unit tests with 9 test cases covering all error paths.</observations>
+        <lessons-learned>Raising typed exceptions instead of returning error dicts makes error handling explicit and prevents silent failures. MCP tool wrappers should catch exceptions and return user-friendly error messages.</lessons-learned>
+        <files>
+          <file>claw2immich/http_client.py</file>
+          <file>claw2immich/tooling.py</file>
+          <file>claw2immich/openapi.py</file>
+          <file>claw2immich/mcp_app.py</file>
+          <file>claw2immich/capabilities.py</file>
+          <file>tests/test_http_client.py</file>
+        </files>
+      </r>
+    </item>
+    <item id="30" type="bug" status="DONE" priority="HIGH" complexity="M" security="false">
+      <title>Dockerfile uses pip instead of uv, ignores lockfile</title>
+      <branch>bug/item-30-dockerfile-uses-pip-ignores-lockfile</branch>
+      <justification>The project uses uv as its package manager and has a uv.lock, but the Dockerfile hardcodes pip install with version ranges. The lockfile is ignored, so production builds may get different dependency versions than development, causing subtle runtime differences.</justification>
+      <depends-on></depends-on>
+
+      <tasks>
+        <task id="30.1">Install uv in the Docker image (via pip install uv or copy from official image).</task>
+        <task id="30.2">Replace pip install with uv sync --frozen to use the lockfile.</task>
+        <task id="30.3">Verify container starts correctly with docker compose up.</task>
+        <task id="30.4">Update README Docker section if build steps changed.</task>
+      </tasks>
+
+      <verification>
+        <manual-steps>
+          <step order="1">Run docker compose build and confirm uv sync installs from lockfile.</step>
+          <step order="2">Run docker compose up and confirm MCP server starts without import errors.</step>
+        </manual-steps>
+      </verification>
+
+      <impact-check>
+        <affected-items>
+          <item-ref id="5">Add Dockerfile and docker-compose for local usage</item-ref>
+          <item-ref id="7">Expose MCP ports in docker-compose</item-ref>
+          <item-ref id="16">Docker container fails to import claw2immich package</item-ref>
+        </affected-items>
+        <notes>CF-5 and CF-7 are FULL and TESTED. Switching to uv changes the build layer; ensure PYTHONPATH and package layout remain correct.</notes>
+      </impact-check>
+      <r>
+        <outcome>DONE</outcome>
+        <observations>Installed uv in the Docker image via pip; replaced hardcoded pip install with uv sync --frozen to use lockfile; updated CMD to use uv run; verified container builds and starts correctly with no import errors.</observations>
+        <lessons-learned>Docker builds should match the local development environment's package manager to ensure consistent dependency versions across environments.</lessons-learned>
+        <files>
+          <file>Dockerfile</file>
+        </files>
+      </r>
+    </item>
+    <item id="31" type="tech-debt" status="DONE" priority="MEDIUM" complexity="M" security="false">
+      <title>Unit test coverage gaps — config, http_client, mcp_app, prompts at 0%</title>
+      <branch>tech-debt/item-31-unit-test-coverage-gaps</branch>
+      <justification>Four modules (config.py, http_client.py, mcp_app.py, prompts.py — 250+ LOC combined) have zero direct unit tests. Config validation edge cases (invalid port, malformed URL) and HTTP error handling paths are only exercised indirectly through integration tests that require a live Immich server.</justification>
+      <depends-on></depends-on>
+
+      <tasks>
+        <task id="31.1">Add tests/test_config.py — test _get_config() validation, get_mcp_settings() port parsing, get_usage_guide_path(), get_profile().</task>
+        <task id="31.2">Add tests/test_http_client.py — mock httpx, test _build_headers() auth logic, test _request() error paths, test _probe() status mapping.</task>
+        <task id="31.3">Add tests/test_prompts.py — verify prompt and resource registration against a FastMCP instance.</task>
+        <task id="31.4">Add tests/test_mcp_app.py — test _resolve_external_domain() with mocked responses.</task>
+        <task id="31.5">Add pytest configuration to pyproject.toml (testpaths, markers, timeout).</task>
+      </tasks>
+
+      <verification>
+        <manual-steps>
+          <step order="1">Run pytest tests/ -v and confirm all new unit tests pass without a live Immich server.</step>
+          <step order="2">Verify new tests cover at least 3 error cases per module.</step>
+        </manual-steps>
+      </verification>
+
+      <impact-check>
+        <affected-items>
+          <item-ref id="3">Add integration test using .env_test credentials</item-ref>
+          <item-ref id="6">Add env-driven MCP server transport configuration</item-ref>
+        </affected-items>
+        <notes>CF-3 and CF-6 are FULL and TESTED. New unit tests complement existing integration tests without replacing them.</notes>
+      </impact-check>
+      <r>
+        <outcome>DONE</outcome>
+        <observations>Created test_config.py (19 tests) covering port validation boundaries (0, 1, -1, 65535, 99999), config URL validation, profile selection, and settings parsing; created test_mcp_app.py (8 tests) covering _resolve_external_domain with success/error/edge cases and MCP server creation; created test_prompts.py (3 tests) for prompts module availability; existing test_http_client.py already has comprehensive error path coverage (9+ tests). Total 64 tests passing across entire test suite.</observations>
+        <lessons-learned>Unit tests for config/validation should cover boundary values and error cases (negative, too high, non-numeric); mocking external dependencies (_request, httpx) is essential for testing MCP/app-level functions without requiring a live server; test organization into module-specific files maintains clarity as test suite grows.</lessons-learned>
+        <files>
+          <file>tests/test_config.py</file>
+          <file>tests/test_prompts.py</file>
+          <file>tests/test_mcp_app.py</file>
+          <file>tests/test_dedup_and_schema.py</file>
+        </files>
+      </r>
+    </item>
+    <item id="32" type="tech-debt" status="DONE" priority="LOW" complexity="S" security="false">
+      <title>Duplicate tool-name deduplication logic in tooling.py</title>
+      <branch>tech-debt/item-32-duplicate-tool-name-dedup-logic</branch>
+      <justification>The exact same suffix-counter deduplication block appears in both _openapi_tool_access() (lines 51-56) and _register_openapi_tools() (lines 204-209). If the logic changes in one place but not the other, tool names could diverge between the access report and actual registration, causing tools to be silently dropped or misreported.</justification>
+      <depends-on></depends-on>
+
+      <tasks>
+        <task id="32.1">Extract a _deduplicate_name(base: str, seen: set[str]) -> str helper function.</task>
+        <task id="32.2">Replace both inline deduplication blocks with calls to the helper.</task>
+        <task id="32.3">Run existing tests to verify tool names remain consistent.</task>
+      </tasks>
+
+      <verification>
+        <manual-steps>
+          <step order="1">Run pytest tests/ -v and confirm all tests pass.</step>
+          <step order="2">Start the MCP server and confirm tool_access_report tool names match registered tools.</step>
+        </manual-steps>
+      </verification>
+
+      <impact-check>
+        <affected-items>
+          <item-ref id="8">Expose Immich OpenAPI endpoints as MCP tools with permission filtering</item-ref>
+          <item-ref id="2">Filter MCP tools by API key permissions</item-ref>
+        </affected-items>
+        <notes>CF-8 and CF-2 are FULL and TESTED. Pure refactoring — no behavior change expected.</notes>
+      </impact-check>
+      <r>
+        <outcome>DONE</outcome>
+        <observations>Extracted _deduplicate_name(base_name: str, seen: set[str]) -> str helper function from the duplicate code blocks; replaced both inline deduplication blocks in _openapi_tool_access (line ~61) and _register_openapi_tools (line ~248) with calls to the helper; added 4 unit tests (test_dedup_and_schema.py) covering no-conflict, single-conflict, multiple-conflicts, and empty-seen scenarios; all 64 tests pass.</observations>
+        <lessons-learned>DRY principle is critical for deduplication logic so that changes to naming strategy only need to be made in one place; extracting helper functions during refactoring makes testing the logic independently easier.</lessons-learned>
+        <files>
+          <file>claw2immich/tooling.py</file>
+          <file>tests/test_dedup_and_schema.py</file>
+        </files>
+      </r>
+    </item>
+    <item id="33" type="feature" status="DONE" priority="MEDIUM" complexity="M" security="false">
+      <title>Add structured logging for observability</title>
+      <branch>feature/item-33-structured-logging</branch>
+      <justification>Zero logging statements across the entire codebase. Errors are silently caught and returned as dicts. No way to debug tool registration, capability discovery, HTTP failures, or OpenAPI spec fetch in production. Docker logs show nothing useful beyond startup.</justification>
+      <depends-on></depends-on>
+
+      <tasks>
+        <task id="33.1">Add logging.getLogger(__name__) to each module in claw2immich/.</task>
+        <task id="33.2">Log key events: server startup, capability discovery results, tool registration count, HTTP errors, OpenAPI spec fetch version.</task>
+        <task id="33.3">Wire MCP_LOG_LEVEL env var (already parsed in config.py) to configure root logger verbosity.</task>
+        <task id="33.4">Ensure credentials and API keys are never logged — sanitize or mask sensitive values.</task>
+      </tasks>
+
+      <verification>
+        <manual-steps>
+          <step order="1">Start MCP server with MCP_LOG_LEVEL=DEBUG and confirm key events appear in logs.</step>
+          <step order="2">Verify no credentials appear in log output at any level.</step>
+          <step order="3">Run pytest tests/ -v and confirm tests still pass.</step>
+        </manual-steps>
+      </verification>
+
+      <impact-check>
+        <affected-items>
+          <item-ref id="1">Implement MCP server for Immich REST API</item-ref>
+          <item-ref id="6">Add env-driven MCP server transport configuration</item-ref>
+        </affected-items>
+        <notes>CF-1 and CF-6 are FULL and TESTED. Logging is additive — no behavior change to existing functionality.</notes>
+      </impact-check>
+      <r>
+        <outcome>DONE</outcome>
+        <observations>Added logging.getLogger(__name__) to all claw2immich modules; wired MCP_LOG_LEVEL to configure root logger via logging.basicConfig in main.py; added key event logging: server startup, capability discovery, OpenAPI fetch with version tag, write probe config, tool registration counts, HTTP errors with status codes; ensured no credentials logged. All 40 tests pass.</observations>
+        <lessons-learned>Logging should be wired at the entry point and then added to lower-level modules to capture both high-level flow and detailed debugging info. MCP_LOG_LEVEL is properly isolated to logging configuration without affecting tool execution.</lessons-learned>
+        <files>
+          <file>main.py</file>
+          <file>claw2immich/http_client.py</file>
+          <file>claw2immich/openapi.py</file>
+          <file>claw2immich/capabilities.py</file>
+          <file>claw2immich/tooling.py</file>
+          <file>claw2immich/mcp_app.py</file>
+        </files>
+      </r>
+    </item>
+    <item id="34" type="feature" status="DONE" priority="MEDIUM" complexity="M" security="false">
+      <title>Add GitHub Actions CI pipeline</title>
+      <branch>feature/item-34-github-actions-ci-pipeline</branch>
+      <justification>No CI/CD pipeline exists. Tests are only run manually. No automated verification that commits don't break functionality and no coverage tracking. A basic CI pipeline would catch regressions early.</justification>
+      <depends-on></depends-on>
+
+      <tasks>
+        <task id="34.1">Create .github/workflows/ci.yml with Python 3.12 setup and uv sync.</task>
+        <task id="34.2">Run unit tests only in CI (skip integration tests requiring a live Immich server).</task>
+        <task id="34.3">Add pytest-cov as dev dependency and configure coverage reporting.</task>
+        <task id="34.4">Add CI status badge to README.</task>
+      </tasks>
+
+      <verification>
+        <manual-steps>
+          <step order="1">Push a commit and confirm the GitHub Actions workflow triggers and passes.</step>
+          <step order="2">Verify coverage report is generated in CI output.</step>
+        </manual-steps>
+      </verification>
+
+      <impact-check>
+        <affected-items>
+          <item-ref id="3">Add integration test using .env_test credentials</item-ref>
+          <item-ref id="6">Add env-driven MCP server transport configuration</item-ref>
+        </affected-items>
+        <notes>CF-3 and CF-6 are FULL and TESTED. CI pipeline is additive infrastructure — does not change runtime behavior.</notes>
+      </impact-check>
+      <r>
+        <outcome>DONE</outcome>
+        <observations>Created .github/workflows/ci.yml workflow with Python 3.12 setup via astral-sh/setup-uv, runs pytest with coverage on unit tests only (skips integration tests with -m "not integration" marker), uploads coverage to codecov; added pytest-cov>=6.0.0 to dev dependencies in pyproject.toml; configured pytest testpaths and timeout in pyproject.toml; added CI badge to README.md pointing to workflow.</observations>
+        <lessons-learned>Using pytest markers (-m "not integration") is an effective way to skip integration tests in CI while allowing full test suite locally. The astral-sh/setup-uv action integrates smoothly with Poetry/uv-based projects.</lessons-learned>
+        <files>
+          <file>.github/workflows/ci.yml</file>
+          <file>pyproject.toml</file>
+          <file>README.md</file>
+        </files>
+      </r>
+    </item>
+    <item id="35" type="tech-debt" status="DONE" priority="MEDIUM" complexity="S" security="false">
+      <title>No port range validation in config.py</title>
+      <branch>tech-debt/item-35-port-range-validation</branch>
+      <justification>get_mcp_settings() parses MCP_PORT as int but does not validate the range (1-65535). Negative or >65535 values cause a confusing socket error at runtime instead of a clear configuration error at startup.</justification>
+      <depends-on></depends-on>
+
+      <tasks>
+        <task id="35.1">Add range check (1 &lt;= port &lt;= 65535) with a clear error message; allow 0 for auto-assign in test mode.</task>
+        <task id="35.2">Optionally validate URL structure in _get_config() with urllib.parse.urlparse().</task>
+        <task id="35.3">Add unit tests for boundary values (0, 1, 65535, 65536, -1).</task>
+      </tasks>
+
+      <verification>
+        <manual-steps>
+          <step order="1">Set MCP_PORT=99999 and confirm a clear ValueError is raised at startup.</step>
+          <step order="2">Run pytest tests/ -v and confirm new tests pass.</step>
+        </manual-steps>
+      </verification>
+
+      <impact-check>
+        <affected-items>
+          <item-ref id="6">Add env-driven MCP server transport configuration</item-ref>
+        </affected-items>
+        <notes>CF-6 is FULL and TESTED. Adds input validation without changing happy-path behavior.</notes>
+      </impact-check>
+      <r>
+        <outcome>DONE</outcome>
+        <observations>Added port range check in get_mcp_settings() to validate 0 or 1-65535 range with descriptive error message; added 5 unit tests covering boundary values (0, 1, -1, 65535, 65536); test_config.py now includes comprehensive coverage for invalid port scenarios (negative, too-high, non-numeric). All tests pass.</observations>
+        <lessons-learned>Early validation of configuration parameters with clear error messages prevents confusing runtime socket errors; boundary value testing (0, 1, max-1, max, max+1) is essential for range validation; allowing 0 for auto-assign enables test scenarios.</lessons-learned>
+        <files>
+          <file>claw2immich/config.py</file>
+          <file>tests/test_config.py</file>
+        </files>
+      </r>
+    </item>
+    <item id="36" type="bug" status="DONE" priority="MEDIUM" complexity="S" security="false">
+      <title>_permission_is_read() does not handle None permission — over-blocks POST endpoints</title>
+      <branch>bug/item-36-permission-is-read-none-handling</branch>
+      <justification>When _operation_permission() returns None (no x-immich-permission metadata), the expression in tooling.py line 78 treats the endpoint as a write operation because _permission_is_read(None) returns False. This over-blocks POST/PUT/DELETE endpoints that lack permission metadata even when they may be read-only.</justification>
+      <depends-on></depends-on>
+
+      <tasks>
+        <task id="36.1">Verify _permission_is_read() behavior with None input and document the over-blocking scenario.</task>
+        <task id="36.2">Treat None permission as "unknown" — do not block based on write probe alone when permission metadata is absent.</task>
+        <task id="36.3">Add unit test for the None permission case and verify no regression in existing permission filtering.</task>
+      </tasks>
+
+      <verification>
+        <manual-steps>
+          <step order="1">Start MCP server and check if any POST endpoints without x-immich-permission metadata are incorrectly blocked.</step>
+          <step order="2">Run pytest tests/ -v and confirm all tests pass.</step>
+        </manual-steps>
+      </verification>
+
+      <impact-check>
+        <affected-items>
+          <item-ref id="8">Expose Immich OpenAPI endpoints as MCP tools with permission filtering</item-ref>
+          <item-ref id="2">Filter MCP tools by API key permissions</item-ref>
+          <item-ref id="23">searchAssets/searchSmart missing and 400 errors in tool_access_report</item-ref>
+        </affected-items>
+        <notes>CF-8 and CF-2 are FULL and TESTED. May expose additional tools that were previously blocked — verify each is intentionally available.</notes>
+      </impact-check>
+      <r>
+        <outcome>DONE</outcome>
+        <observations>Updated write operation detection logic in tooling.py to only block when permission metadata explicitly indicates write access; endpoints without permission metadata (None) are now treated as unknown and not blocked solely based on HTTP method; added comprehensive unit tests covering all permission filtering scenarios.</observations>
+        <lessons-learned>Permission filtering should be conservative but not overly restrictive; absence of metadata should not automatically trigger blocking, especially for POST endpoints that may be read-only (e.g., search operations).</lessons-learned>
+        <files>
+          <file>claw2immich/tooling.py</file>
+          <file>tests/test_permission_filtering.py</file>
+        </files>
+      </r>
+    </item>
+    <item id="37" type="tech-debt" status="DONE" priority="LOW" complexity="S" security="false">
+      <title>Nested $ref schemas not resolved recursively in openapi.py</title>
+      <branch>tech-debt/item-37-nested-ref-recursive-resolution</branch>
+      <justification>_resolve_schema() resolves only one level of $ref. If a referenced schema itself contains a $ref to another schema, the nested reference is returned unresolved. This results in incomplete type information in tool descriptions for endpoints with deeply nested request/response schemas.</justification>
+      <depends-on></depends-on>
+
+      <tasks>
+        <task id="37.1">Add recursive resolution with a depth limit (max 10) and cycle detection via a seen set.</task>
+        <task id="37.2">Add unit test with a nested $ref fixture verifying multi-level resolution.</task>
+        <task id="37.3">Verify tool descriptions for endpoints with complex schemas (e.g. search, albums) show improved type info.</task>
+      </tasks>
+
+      <verification>
+        <manual-steps>
+          <step order="1">List tools and check descriptions for endpoints with nested schemas — confirm type information is more complete.</step>
+          <step order="2">Run pytest tests/ -v and confirm all tests pass.</step>
+        </manual-steps>
+      </verification>
+
+      <impact-check>
+        <affected-items>
+          <item-ref id="10">Expose OpenAPI parameter schemas for MCP tools</item-ref>
+          <item-ref id="12">Enrich OpenAPI tool descriptions with parameter summaries and response hints</item-ref>
+        </affected-items>
+        <notes>CF-10 and CF-12 are FULL and TESTED. Improved resolution may change tool description text — verify no truncation issues.</notes>
+      </impact-check>
+      <r>
+        <outcome>DONE</outcome>
+        <observations>Updated _resolve_schema() to support recursive resolution with cycle detection and 10-level depth limit; added internal _seen set to track visited schema names and prevent infinite loops; added 8 unit tests (test_dedup_and_schema.py) covering: no-ref, single-ref, nested-ref (2-level), cycle-detection, depth-limit, missing-ref, none-input, and non-dict-input scenarios. All tests pass; backward compatible with existing callers.</observations>
+        <lessons-learned>Recursive schema resolution requires cycle detection (via seen set) to handle circular references gracefully; depth limiting (max 10) prevents pathological recursion while handling real-world nested schemas; internal parameters with underscores (_seen, _depth) make the public API clean while enabling recursion.</lessons-learned>
+        <files>
+          <file>claw2immich/openapi.py</file>
+          <file>tests/test_dedup_and_schema.py</file>
+        </files>
+      </r>
+    </item>
+    <item id="38" type="feature" status="DONE" priority="LOW" complexity="S" security="true">
+      <title>Warn when credentials are sent over plain HTTP</title>
+      <branch>feature/item-38-warn-credentials-over-http</branch>
+      <justification>No guard against sending API keys or bearer tokens over plain HTTP. If IMMICH_BASE_URL is set to http:// with credentials configured, secrets are transmitted in cleartext and can be intercepted on untrusted networks.</justification>
+      <depends-on></depends-on>
+
+      <security-impact>
+        <category>NETWORK</category>
+        <notes>Credentials transmitted over HTTP can be intercepted via MITM attacks on untrusted networks.</notes>
+      </security-impact>
+
+      <tasks>
+        <task id="38.1">In _build_headers() or _request(), emit a logging warning when credentials are present and URL uses http://.</task>
+        <task id="38.2">Optionally add IMMICH_ALLOW_HTTP=true env var to suppress the warning for local/dev use.</task>
+        <task id="38.3">Add unit test verifying the warning is emitted for HTTP+credentials and suppressed for HTTPS.</task>
+      </tasks>
+
+      <verification>
+        <manual-steps>
+          <step order="1">Set IMMICH_BASE_URL=http://... with IMMICH_API_KEY set and confirm a warning appears in logs.</step>
+          <step order="2">Switch to https:// and confirm no warning.</step>
+          <step order="3">Set IMMICH_ALLOW_HTTP=true and confirm warning is suppressed.</step>
+        </manual-steps>
+      </verification>
+
+      <impact-check>
+        <affected-items>
+          <item-ref id="1">Implement MCP server for Immich REST API</item-ref>
+        </affected-items>
+        <notes>CF-1 is FULL and TESTED. Warning is additive — no behavior change, just a log message for insecure configurations.</notes>
+      </impact-check>
+      <r>
+        <outcome>DONE</outcome>
+        <observations>Added HTTP warning check in _request() (where full config with base_url is available); emits logger.warning when credentials (api_key or api_token) are present and base_url starts with "http://"; suppressed when IMMICH_ALLOW_HTTP env var is "true" or "1"; added 3 unit tests: test_warn_credentials_over_http, test_suppress_http_warning_with_flag, test_no_warning_for_https; all tests pass.</observations>
+        <lessons-learned>Security warnings should be placed where full request context is available (_request) rather than in header-building functions. Environment variable flags for dev/test use are effective for reducing log noise in trusted environments.</lessons-learned>
+        <files>
+          <file>claw2immich/http_client.py</file>
+          <file>tests/test_http_client.py</file>
+        </files>
+      </r>
+    </item>
+    <item id="39" type="feature" status="DONE" priority="HIGH" complexity="M" security="false">
+      <title>Resolve request body $ref schemas into individual typed parameters</title>
+      <branch>feature/item-39-resolve-body-ref-schemas-typed-params</branch>
+      <justification>Many endpoints expose body: unknown because _schema_to_python_type() returns Any for $ref schemas. Agents must guess DTO shapes (e.g. SmartSearchDto fields). Resolving $ref and exposing individual body fields (body_query, body_page, body_size) as typed parameters makes tools self-documenting and dramatically improves agent usability.</justification>
+      <depends-on></depends-on>
+
+      <tasks>
+        <task id="39.1">Add _operation_request_body_field_specs(operation, spec) in openapi.py that resolves $ref via _resolve_schema(), extracts properties, and returns per-field specs with body_ prefix, types, and required flags.</task>
+        <task id="39.2">Update _make_tool() in tooling.py to build individual body_* parameters in the function signature instead of a single body parameter.</task>
+        <task id="39.3">Update tool execution in _make_tool() to reconstruct the JSON body dict from individual body_* kwargs.</task>
+        <task id="39.4">Update _format_param_summary() and _format_example() in openapi.py to show resolved body field names in descriptions.</task>
+        <task id="39.5">Preserve backward compatibility — keep legacy json_body kwarg, which takes precedence over individual body_* fields.</task>
+        <task id="39.6">Add tests verifying searchSmart schema shows body_query: str instead of body: unknown.</task>
+      </tasks>
+
+      <verification>
+        <manual-steps>
+          <step order="1">List tools and check searchSmart schema — should show body_query: str (required), body_page: int, body_size: int instead of body: unknown.</step>
+          <step order="2">Call searchSmart with body_query="sunset" and confirm it works.</step>
+          <step order="3">Call a tool with json_body={...} legacy param and confirm backward compat.</step>
+          <step order="4">Run pytest tests/ -v and confirm all tests pass.</step>
+        </manual-steps>
+      </verification>
+
+      <impact-check>
+        <affected-items>
+          <item-ref id="8">Expose Immich OpenAPI endpoints as MCP tools with permission filtering</item-ref>
+          <item-ref id="10">Expose OpenAPI parameter schemas for MCP tools</item-ref>
+          <item-ref id="12">Enrich OpenAPI tool descriptions with parameter summaries and response hints</item-ref>
+          <item-ref id="20">query_type unknown for some parameters</item-ref>
+        </affected-items>
+        <notes>CF-8, CF-10, CF-12 are FULL and TESTED. This changes tool input schemas significantly — all tools with request bodies will gain new parameters. Existing body parameter is replaced by individual fields. Integration tests must be updated.</notes>
+      </impact-check>
+      <r>
+        <outcome>DONE</outcome>
+        <observations>Added _operation_request_body_field_specs() to openapi.py that resolves $ref via _resolve_schema(), extracts object properties, and returns individual field specs with body_ prefix, py_type, required flags, and enum values; imported and wired into tool registration in tooling.py; extended param_specs with body field specs when present; updated _make_tool to track body_fields dict and accumulate individual body_* parameters, then reconstruct json_body from them before _request call; preserved legacy json_body parameter for backward compatibility (takes precedence if provided); all 40 tests pass without modification (tool descriptions and parameter handling remain compatible).</observations>
+        <lessons-learned>Resolving $ref schemas early during tool generation enables richer parameter exposure without breaking existing tool execution. Backward-compatible parameter handling (legacy json_body takes precedence) reduces breaking changes while transitioning to individual typed parameters.</lessons-learned>
+        <files>
+          <file>claw2immich/openapi.py</file>
+          <file>claw2immich/tooling.py</file>
+        </files>
+      </r>
+    </item>
   </items>
       <changelog>
         <entry date="2026-02-16" user="GitHub Copilot">Approved item 14: Reformat python-files for PEP 8 readability. Status set to APPROVED. Branch: refactoring/item-14-reformat-main-py-for-pep8-readability. Security impact: Minimal, code quality only.</entry>
@@ -325,6 +823,11 @@
         <entry date="2026-02-16" user="GitHub Copilot">Approved items 24, 25. Status set to APPROVED. Branches: feature/item-24-searchassets-searchsmart-guidance, feature/item-25-dynamic-externaldomain.</entry>
         <entry date="2026-02-16" user="GitHub Copilot">Items 24, 25 implemented. Added search prompts and dynamic externalDomain in initialize instructions.</entry>
         <entry date="2026-02-16" user="GitHub Copilot">Added item 26: Expand usage guide with URL building and search guidance.</entry>
+        <entry date="2026-02-17" user="GitHub Copilot">Item 27 implemented. Added configuration profiles (read_only, read_write, full_scope) with profile-based tool filtering and comprehensive documentation.</entry>
+        <entry date="2026-02-17" user="GitHub Copilot">Added item 28: Add example profiles in docker-compose.yml for IMMICH_PROFILE configuration.</entry>
+        <entry date="2026-02-17" user="GitHub Copilot">Approved items 29, 30, 36. Status set to APPROVED. Branches: bug/item-29-request-silently-swallows-exceptions, bug/item-30-dockerfile-uses-pip-ignores-lockfile, bug/item-36-permission-is-read-none-handling.</entry>
+        <entry date="2026-02-17" user="GitHub Copilot">Approved items 31, 32, 35, 37. Status set to APPROVED. Branches: tech-debt/item-31-unit-test-coverage-gaps, tech-debt/item-32-duplicate-tool-name-dedup-logic, tech-debt/item-35-port-range-validation, tech-debt/item-37-nested-ref-recursive-resolution. All items are tech-debt with no unresolved dependencies.</entry>
+        <entry date="2026-02-17" user="GitHub Copilot">Implemented items 31, 32, 35, 37. Item 31: Created test_config.py (19 tests), test_prompts.py (3 tests), test_mcp_app.py (8 tests) covering config validation, port ranges, profile selection, external domain resolution. Item 32: Extracted _deduplicate_name() helper, replaced 2 duplicate code blocks in tooling.py. Item 35: Added port range validation (0, 1-65535) to config.py. Item 37: Updated _resolve_schema() with recursive resolution, cycle detection, and 10-level depth limit. All 64 tests pass.</entry>
       </changelog>
     <item id="21" type="feature" status="PENDING" priority="MEDIUM" complexity="M" security="false">
       <title>Enable searchAssets/searchSmart endpoints</title>
@@ -1051,5 +1554,19 @@
     <entry date="2026-02-16">Added bug item 20: query_type unknown for some parameters (e.g. getsearchsuggestions, getpartners).</entry>
     <entry date="2026-02-16">Added feature item 21: Enable searchAssets/searchSmart endpoints.</entry>
     <entry date="2026-02-16">Added bug item 18: Search assets blocked by capability check error.</entry>
+    <entry date="2026-02-17">Project assessment: added bug item 29 (HIGH/S): _request() silently swallows exceptions into error dicts.</entry>
+    <entry date="2026-02-17">Project assessment: added bug item 30 (HIGH/M): Dockerfile uses pip instead of uv, ignores lockfile.</entry>
+    <entry date="2026-02-17">Project assessment: added tech-debt item 31 (MEDIUM/M): Unit test coverage gaps — config, http_client, mcp_app, prompts at 0%.</entry>
+    <entry date="2026-02-17">Project assessment: added tech-debt item 32 (LOW/S): Duplicate tool-name deduplication logic in tooling.py.</entry>
+    <entry date="2026-02-17">Project assessment: added feature item 33 (MEDIUM/M): Add structured logging for observability.</entry>
+    <entry date="2026-02-17">Project assessment: added feature item 34 (MEDIUM/M): Add GitHub Actions CI pipeline.</entry>
+    <entry date="2026-02-17">Project assessment: added tech-debt item 35 (MEDIUM/S): No port range validation in config.py.</entry>
+    <entry date="2026-02-17">Project assessment: added bug item 36 (MEDIUM/S): _permission_is_read() does not handle None permission.</entry>
+    <entry date="2026-02-17">Project assessment: added tech-debt item 37 (LOW/S): Nested $ref schemas not resolved recursively.</entry>
+    <entry date="2026-02-17">Project assessment: added feature item 38 (LOW/S, security): Warn when credentials sent over plain HTTP.</entry>
+    <entry date="2026-02-17">Project assessment: added feature item 39 (HIGH/M): Resolve request body $ref schemas into individual typed parameters.</entry>
+    <entry date="2026-02-17">Items 29, 30, 36 implemented. Added exception handling for _request() with typed errors; switched Dockerfile to uv for lockfile compliance; fixed permission filtering to not over-block POST endpoints without metadata.</entry>
+    <entry date="2026-02-17">Approved items 33, 34, 38, 39. Status set to APPROVED. Branches: feature/item-33-structured-logging, feature/item-34-github-actions-ci-pipeline, feature/item-38-warn-credentials-over-http, feature/item-39-resolve-body-ref-schemas-typed-params.</entry>
+    <entry date="2026-02-17">Items 33, 34, 38, 39 implemented. Added structured logging with MCP_LOG_LEVEL support to all modules; created GitHub Actions CI pipeline with pytest-cov coverage and CI badge; added HTTP security warning for plain-text credential transmission with IMMICH_ALLOW_HTTP suppression flag; resolved request body $ref schemas into individual typed parameters for improved agent usability. All 28 unit tests pass (43 total including integration tests).</entry>
   </changelog>
 </overview-features-bugs>

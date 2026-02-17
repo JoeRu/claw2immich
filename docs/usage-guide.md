@@ -26,6 +26,7 @@ Tools include:
 
 Descriptions are enriched with:
 - `params:` summary of required path/query/body fields
+- Enum constraints shown as `param_name[value1|value2|value3]` for parameters with limited valid values
 - `example:` short call sketch when required inputs exist
 - `returns:` response schema title and key fields when available
 
@@ -47,6 +48,32 @@ Legacy parameters (`path_params`, `query_params`, `headers`, `json_body`) still 
 
 ## Client Handling
 Clients automatically receive server info, instructions, capabilities, and tool lists on connect. Use this to inform tool selection and reduce guesswork.
+
+## Access Profiles
+The server supports optional access profiles via the `IMMICH_PROFILE` environment variable to restrict tool exposure based on permission level. Profiles work as an additional filter layer on top of capability probes.
+
+### Available Profiles
+- **`read_only`**: Only exposes GET endpoints for browsing and searching. Blocks all write operations (upload, update, delete) and admin tools.
+- **`read_write`**: Exposes read tools plus write operations for assets and albums. Blocks admin-only endpoints (user management, server config, system jobs).
+- **`full_scope`**: Exposes all available tools including admin endpoints. No profile restrictions; tool exposure depends only on API key permissions and capability probes.
+- **No profile (default)**: When `IMMICH_PROFILE` is unset, no profile restrictions apply. Tool filtering relies solely on capability probes and API key permissions (backward compatible).
+
+### How Profiles Affect Tool Availability
+- **read_only**: Only tools with `GET` methods appear (searching, browsing, reporting). Write tools (`POST`, `PUT`, `PATCH`, `DELETE`) are blocked with reason: "Write endpoint blocked by profile: read_only".
+- **read_write**: All non-admin tools appear. Admin-only endpoints are blocked with reason: "Admin endpoint blocked by profile: read_write".
+- **full_scope**: All tools that pass capability probes appear. No profile-based blocking.
+
+### Checking Active Profile
+Profiles are transparent to MCP clients. To understand which tools are blocked:
+1. Call `tool_access_report` to see allowed and blocked tools.
+2. Review `blocked_tools` array for items with profile-related reasons.
+3. If a required tool is blocked by profile, ask the user to adjust `IMMICH_PROFILE` or use a less restrictive profile.
+
+### Profile Selection Guidance
+- Use `read_only` for AI assistants performing search, analysis, and reporting without modification needs.
+- Use `read_write` for workflows that manage assets and albums but do not require admin access.
+- Use `full_scope` only when user management, server configuration, or system maintenance is required.
+- When unsure, check `tool_access_report` blocked reasons to diagnose profile restrictions.
 
 ## Initialize Instructions
 Initialize instructions include externalDomain guidance for link building. Use the tool whose description starts with `GET /api/server-config` and read `externalDomain` before constructing links.

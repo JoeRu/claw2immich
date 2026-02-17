@@ -6,14 +6,16 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PYTHONPATH=/app
 
+# Install uv
+RUN pip install --no-cache-dir uv
+
 COPY pyproject.toml uv.lock* ./
 
-RUN pip install --no-cache-dir \
-    "httpx>=0.28.1" \
-    "mcp[cli]>=1.26.0"
+# Use uv to install dependencies from lockfile
+RUN uv sync --frozen
 
 COPY main.py ./
 COPY claw2immich ./claw2immich
 COPY docs ./docs
 
-CMD ["python", "main.py"]
+CMD ["uv", "run", "python", "main.py"]

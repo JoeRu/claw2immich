@@ -13,6 +13,14 @@ def get_mcp_settings() -> dict[str, Any]:
         port = int(port_raw)
     except ValueError as exc:
         raise ValueError("MCP_PORT must be an integer") from exc
+    
+    # Validate port range: 0 (auto-assign/test) or 1-65535
+    if not (port == 0 or 1 <= port <= 65535):
+        raise ValueError(
+            f"MCP_PORT must be in range [0, 1-65535], got {port}. "
+            f"Use 0 for auto-assign in test mode."
+        )
+    
     return {"host": host, "port": port, "log_level": log_level}
 
 
@@ -34,3 +42,31 @@ def _get_config() -> dict[str, str]:
 def get_usage_guide_path() -> str:
     base_dir = Path(__file__).resolve().parents[1]
     return str(base_dir / "docs" / "usage-guide.md")
+
+
+def get_profile() -> str | None:
+    """Get the configured access profile from IMMICH_PROFILE env var."""
+    profile = os.getenv("IMMICH_PROFILE", "").strip().lower()
+    if not profile:
+        return None
+    valid_profiles = {"read_only", "read_write", "full_scope"}
+    if profile not in valid_profiles:
+        raise ValueError(
+            f"Invalid IMMICH_PROFILE: {profile}. "
+            f"Must be one of: {', '.join(sorted(valid_profiles))}"
+        )
+    return profile
+
+
+def profile_allows_write(profile: str | None) -> bool:
+    """Check if the given profile allows write operations."""
+    if profile is None:
+        return True  # No profile restriction, rely on capability probes
+    return profile in ("read_write", "full_scope")
+
+
+def profile_allows_admin(profile: str | None) -> bool:
+    """Check if the given profile allows admin operations."""
+    if profile is None:
+        return True  # No profile restriction, rely on capability probes
+    return profile == "full_scope"

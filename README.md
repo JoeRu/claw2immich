@@ -1,5 +1,7 @@
 # claw2immich
 
+[![CI](https://github.com/janthoene/claw2immich/actions/workflows/ci.yml/badge.svg)](https://github.com/janthoene/claw2immich/actions/workflows/ci.yml)
+
 claw2immich is a Python MCP (Model Context Protocol) server that exposes selected Immich REST API endpoints. It uses the Immich OpenAPI spec for API metadata and surfaces a small, permission-aware tool set for common read-only checks.
 
 ## Status
@@ -43,6 +45,7 @@ Environment variables:
 - `IMMICH_BASE_URL` (default `http://localhost:2283`)
 - `IMMICH_API_KEY`
 - `IMMICH_API_TOKEN`
+- `IMMICH_PROFILE` (optional: `read_only`, `read_write`, or `full_scope`)
 - `IMMICH_WRITE_PROBE_PATH` (default `/api/assets`)
 - `IMMICH_WRITE_PROBE_METHOD` (default `POST`)
 
@@ -56,6 +59,133 @@ MCP server environment variables:
 OpenAPI spec source:
 Version-matched spec (after `/api/health` and `/api/server/version`):
 https://raw.githubusercontent.com/immich-app/immich/v{VERSION}/open-api/immich-openapi-specs.json
+
+## Access Profiles
+
+Access profiles provide predefined permission levels to simplify API key management and reduce misconfiguration risk. Set `IMMICH_PROFILE` to one of the following values:
+
+### `read_only`
+**Use case:** Safe browsing, search, and reporting without modification risk.
+
+**Permissions required:**
+- `asset.read` - View photos and videos
+- `album.read` - View albums
+- `library.read` - Browse libraries
+- `timeline.read` - Access timeline and memories
+
+**Typical tools exposed:**
+- `immich_getAllAssets`, `immich_getAssetById`, `immich_searchAssets`
+- `immich_getAllAlbums`, `immich_getAlbumInfo`
+- `immich_getMyUserInfo`, `immich_getServerInfo`
+- All GET endpoints for reading data
+
+**Blocked tools:**
+- Asset upload, update, delete
+- Album creation, modification
+- User management
+- Server configuration
+
+**Example Claude Desktop config (`mcporter.json` snippet):**
+```json
+{
+  "mcpServers": {
+    "claw2immich-readonly": {
+      "command": "python",
+      "args": ["c:\\path\\to\\claw2immich\\main.py"],
+      "env": {
+        "IMMICH_BASE_URL": "https://immich.example.com",
+        "IMMICH_API_KEY": "your-read-only-key",
+        "IMMICH_PROFILE": "read_only"
+      }
+    }
+  }
+}
+```
+
+### `read_write`
+**Use case:** Full asset and album management without admin privileges.
+
+**Permissions required:**
+- All `read_only` permissions plus:
+- `asset.create` - Upload photos/videos
+- `asset.update` - Edit metadata, favorites
+- `asset.delete` - Remove assets
+- `album.create` - Create albums
+- `album.update` - Modify albums
+- `album.delete` - Remove albums
+
+**Typical tools exposed:**
+- All read-only tools plus:
+- `immich_uploadAsset`, `immich_updateAsset`, `immich_deleteAssets`
+- `immich_createAlbum`, `immich_addAssetsToAlbum`, `immich_removeAssetFromAlbum`
+- `immich_updateUser` (own user only)
+- All POST, PUT, PATCH, DELETE endpoints except admin-only
+
+**Blocked tools:**
+- User administration (`getAllUsers`, `createUser`, `deleteUser`)
+- Server configuration (`setServerConfig`, `updateServerConfig`)
+- System maintenance (`runJobs`, `validateStorage`)
+- API key management
+
+**Example Claude Desktop config:**
+```json
+{
+  "mcpServers": {
+    "claw2immich-readwrite": {
+      "command": "python",
+      "args": ["c:\\path\\to\\claw2immich\\main.py"],
+      "env": {
+        "IMMICH_BASE_URL": "https://immich.example.com",
+        "IMMICH_API_KEY": "your-readwrite-key",
+        "IMMICH_PROFILE": "read_write"
+      }
+    }
+  }
+}
+```
+
+### `full_scope`
+**Use case:** Administrative tasks, user management, server configuration.
+
+**Permissions required:**
+- All `read_write` permissions plus:
+- `admin.user` - User administration
+- `admin.config` - Server configuration
+- `admin.jobs` - Job management
+- `admin.apiKey` - API key management
+
+**Typical tools exposed:**
+- All read_write tools plus:
+- `immich_getAllUsers`, `immich_createUser`, `immich_updateUser`, `immich_deleteUser`
+- `immich_getServerConfig`, `immich_updateServerConfig`
+- `immich_getAllJobs`, `immich_runJob`
+- `immich_createApiKey`, `immich_updateApiKey`, `immich_deleteApiKey`
+
+**Example Claude Desktop config:**
+```json
+{
+  "mcpServers": {
+    "claw2immich-admin": {
+      "command": "python",
+      "args": ["c:\\path\\to\\claw2immich\\main.py"],
+      "env": {
+        "IMMICH_BASE_URL": "https://immich.example.com",
+        "IMMICH_API_KEY": "your-admin-key",
+        "IMMICH_PROFILE": "full_scope"
+      }
+    }
+  }
+}
+```
+
+### No profile (default)
+When `IMMICH_PROFILE` is not set, tool filtering relies solely on capability probes and the API key's actual permissions. This is backward-compatible with existing configurations.
+
+**Profile selection guidelines:**
+- Use `read_only` for AI assistants performing search and analysis without modification needs
+- Use `read_write` for general asset and album management workflows
+- Use `full_scope` only when administrative access is required
+- Always create a dedicated Immich API key with minimal permissions for each profile
 
 ## Run
 ```

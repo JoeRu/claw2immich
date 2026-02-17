@@ -1,9 +1,12 @@
+import logging
 import re
 from functools import lru_cache
 from typing import Any
 from urllib.parse import quote
 
 import httpx
+
+logger = logging.getLogger(__name__)
 
 from .constants import (
     DEFAULT_TIMEOUT,
@@ -58,25 +61,28 @@ def _require_server_health() -> None:
 
 @lru_cache
 def _fetch_openapi_spec() -> dict[str, Any]:
+    logger.info("Fetching OpenAPI specification")
     _require_server_health()
 
-    version_payload = _request("GET", "/api/server/version")
-    if not isinstance(version_payload, dict) or version_payload.get("error"):
-        detail = (
-            version_payload.get("detail")
-            if isinstance(version_payload, dict)
-            else "unknown error"
-        )
-        raise ValueError(f"Failed to fetch Immich server version: {detail}")
+    try:
+        version_payload = _request("GET", "/api/server/version")
+    except Exception as exc:
+        logger.error(f"Failed to fetch Immich server version: {exc}")
+        raise ValueError(f"Failed to fetch Immich server version: {exc}") from exc
 
     version_tag = _version_tag_from_payload(version_payload)
+    logger.info(f"OpenAPI spec version: {version_tag}")
     spec_url = _versioned_spec_url(version_tag)
 
     with httpx.Client(timeout=DEFAULT_TIMEOUT) as client:
         response = client.get(spec_url)
     try:
         response.raise_for_status()
+        logger.info(f"Successfully fetched OpenAPI spec from {spec_url}")
     except httpx.HTTPStatusError as exc:
+        logger.error(
+            f"OpenAPI spec not available for {version_tag}: HTTP {exc.response.status_code}"
+        )
         raise ValueError(
             f"OpenAPI spec not available for {version_tag}: "
             f"HTTP {exc.response.status_code}"
@@ -178,6 +184,16 @@ def _schema_to_python_type(schema: dict[str, Any] | None) -> Any:
     return Any
 
 
+def _schema_enum_values(schema: dict[str, Any] | None) -> list[Any] | None:
+    """Extract enum values from an OpenAPI schema."""
+    if not isinstance(schema, dict):
+        return None
+    enum_values = schema.get("enum")
+    if isinstance(enum_values, list) and enum_values:
+        return enum_values
+    return None
+
+
 def _operation_param_specs(entry: dict[str, Any]) -> list[dict[str, Any]]:
     operation = entry.get("operation") or {}
     params = _merge_parameters(
@@ -195,15 +211,17 @@ def _operation_param_specs(entry: dict[str, Any]) -> list[dict[str, Any]]:
             if isinstance(param.get("schema"), dict)
             else None
         )
-        specs.append(
-            {
-                "name": name,
-                "location": location,
-                "arg_name": _param_arg_name(location, name),
-                "required": bool(param.get("required")),
-                "py_type": _schema_to_python_type(schema),
-            }
-        )
+        enum_values = _schema_enum_values(schema)
+        spec_dict = {
+            "name": name,
+            "location": location,
+            "arg_name": _param_arg_name(location, name),
+            "required": bool(param.get("required")),
+            "py_type": _schema_to_python_type(schema),
+        }
+        if enum_values:
+            spec_dict["enum"] = enum_values
+        specs.append(spec_dict)
     return specs
 
 
@@ -248,16 +266,49 @@ def _schema_ref_name(schema: dict[str, Any] | None) -> str | None:
 def _resolve_schema(
     schema: dict[str, Any] | None,
     spec: dict[str, Any],
+    _seen: set[str] | None = None,
+    _depth: int = 0,
 ) -> dict[str, Any] | None:
+    """
+    Recursively resolve $ref schemas to their definitions.
+    
+    Args:
+        schema: The schema to resolve, may contain $ref
+        spec: The OpenAPI spec containing all schema definitions
+        _seen: Internal tracking of already-visited schema names to detect cycles
+        _depth: Internal recursion depth tracker (max 10)
+    
+    Returns:
+        The resolved schema (as far as possible), or None if not a dict
+    """
+    if _seen is None:
+        _seen = set()
+    
+    if _depth > 10:  # Depth limit to prevent infinite recursion
+        return schema
+    
     if not isinstance(schema, dict):
         return None
+    
     ref_name = _schema_ref_name(schema)
     if not ref_name:
         return schema
+    
+    # Cycle detection
+    if ref_name in _seen:
+        return schema
+    
+    _seen.add(ref_name)
+    
     components = spec.get("components", {})
     schemas = components.get("schemas", {}) if isinstance(components, dict) else {}
     resolved = schemas.get(ref_name)
-    return resolved if isinstance(resolved, dict) else None
+    
+    if not isinstance(resolved, dict):
+        return None
+    
+    # Recursively resolve nested $ref
+    return _resolve_schema(resolved, spec, _seen, _depth + 1)
 
 
 def _schema_title(
@@ -359,12 +410,24 @@ def _format_param_summary(
         "header": [],
         "cookie": [],
     }
+    enum_info: dict[str, str] = {}
     for param in param_specs:
+        location = str(param.get("location"))
+        param_name = str(param.get("name"))
+        if param.get("enum"):
+            enum_values = param["enum"]
+            if len(enum_values) <= 3:
+                enum_str = "|".join(str(v) for v in enum_values)
+            else:
+                enum_str = f"{len(enum_values)} values"
+            enum_info[f"{location}:{param_name}"] = enum_str
         if not param.get("required"):
             continue
-        location = str(param.get("location"))
         if location in required:
-            required[location].append(str(param.get("name")))
+            param_display = param_name
+            if f"{location}:{param_name}" in enum_info:
+                param_display = f"{param_name}[{enum_info[f'{location}:{param_name}']}]"
+            required[location].append(param_display)
     parts: list[str] = []
     for location in ("path", "query", "header", "cookie"):
         items = required[location]
@@ -425,6 +488,76 @@ def _truncate_description(text: str, max_len: int = MAX_DESCRIPTION_LEN) -> str:
     if len(text) <= max_len:
         return text
     return text[: max_len - 3].rstrip() + "..."
+
+
+def _operation_request_body_field_specs(
+    operation: dict[str, Any],
+    spec: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """Extract individual field specs from request body schema.
+    
+    If request body has a $ref, resolve it and return individual field parameters
+    with 'body_' prefix. Otherwise, return empty list (legacy 'body' param will be used).
+    """
+    request_body = operation.get("requestBody")
+    if not isinstance(request_body, dict):
+        return []
+    
+    content = request_body.get("content")
+    if not isinstance(content, dict) or not content:
+        return []
+    
+    schema = None
+    for content_type in ("application/json", "application/*+json"):
+        if content_type in content:
+            schema = content.get(content_type, {}).get("schema")
+            break
+    if schema is None:
+        first = next(iter(content.values()), {})
+        if isinstance(first, dict):
+            schema = first.get("schema")
+    
+    if not isinstance(schema, dict):
+        return []
+    
+    # Resolve $ref if present
+    resolved = _resolve_schema(schema, spec)
+    if not isinstance(resolved, dict):
+        return []
+    
+    # Only process object schemas with properties
+    if resolved.get("type") != "object":
+        return []
+    
+    properties = resolved.get("properties")
+    if not isinstance(properties, dict) or not properties:
+        return []
+    
+    required_fields = resolved.get("required", [])
+    if not isinstance(required_fields, list):
+        required_fields = []
+    
+    field_specs: list[dict[str, Any]] = []
+    for field_name, field_schema in properties.items():
+        if not isinstance(field_schema, dict):
+            continue
+        
+        arg_name = _sanitize_param_name(f"body_{field_name}")
+        spec_dict = {
+            "name": field_name,
+            "location": "body",
+            "arg_name": arg_name,
+            "required": field_name in required_fields,
+            "py_type": _schema_to_python_type(field_schema),
+        }
+        
+        enum_values = _schema_enum_values(field_schema)
+        if enum_values:
+            spec_dict["enum"] = enum_values
+        
+        field_specs.append(spec_dict)
+    
+    return field_specs
 
 
 def _sanitize_tool_name(value: str) -> str:

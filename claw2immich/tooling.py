@@ -1,12 +1,20 @@
+import logging
 import inspect
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 from .capabilities import (
     _discover_capabilities,
     _discover_user_profile,
     _discover_write_capability,
 )
-from .config import _get_config
+from .config import (
+    _get_config,
+    get_profile,
+    profile_allows_admin,
+    profile_allows_write,
+)
 from .constants import MAX_DESCRIPTION_LEN, MAX_SUMMARY_LEN, WRITE_METHODS
 from .http_client import _request
 from .openapi import (
@@ -21,6 +29,7 @@ from .openapi import (
     _operation_param_specs,
     _operation_permission,
     _operation_request_body_spec,
+    _operation_request_body_field_specs,
     _operation_requires_auth,
     _permission_is_read,
     _response_schema_info,
@@ -29,15 +38,37 @@ from .openapi import (
 )
 
 
+def _deduplicate_name(base_name: str, seen: set[str]) -> str:
+    """
+    Generate a unique tool name by appending suffix if the base name already exists.
+    
+    Args:
+        base_name: The base tool name
+        seen: Set of already-used tool names
+        
+    Returns:
+        A unique name (either the base_name or base_name_N where N >= 2)
+    """
+    if base_name not in seen:
+        return base_name
+    suffix = 2
+    while f"{base_name}_{suffix}" in seen:
+        suffix += 1
+    return f"{base_name}_{suffix}"
+
+
 def _openapi_tool_access() -> dict[str, Any]:
+    logger.debug("Computing OpenAPI tool access")
     spec = _fetch_openapi_spec()
     operations = _list_openapi_operations(spec)
+    logger.debug(f"OpenAPI spec has {len(operations)} operations")
     base_path = _openapi_base_path(spec)
     config = _get_config()
     has_auth = bool(config["api_key"] or config["api_token"])
     write_capability = _discover_write_capability()
     profile = _discover_user_profile() if has_auth else {}
     is_admin = bool(profile.get("isAdmin"))
+    access_profile = get_profile()
 
     allowed_tools: list[str] = []
     blocked_tools: list[dict[str, str]] = []
@@ -48,11 +79,7 @@ def _openapi_tool_access() -> dict[str, Any]:
         path = entry["path"]
         operation = entry["operation"]
         tool_name = _tool_name_for_operation(method, path, operation)
-        if tool_name in seen_names:
-            suffix = 2
-            while f"{tool_name}_{suffix}" in seen_names:
-                suffix += 1
-            tool_name = f"{tool_name}_{suffix}"
+        tool_name = _deduplicate_name(tool_name, seen_names)
         seen_names.add(tool_name)
 
         requires_auth = _operation_requires_auth(operation, spec)
@@ -74,13 +101,40 @@ def _openapi_tool_access() -> dict[str, Any]:
             )
             continue
 
+        if _operation_admin_only(operation) and not profile_allows_admin(
+            access_profile
+        ):
+            blocked_tools.append(
+                {
+                    "tool": tool_name,
+                    "reason": f"Admin endpoint blocked by profile: {access_profile}",
+                }
+            )
+            continue
+
         permission = _operation_permission(operation)
-        is_write = method in WRITE_METHODS and not _permission_is_read(permission)
+        # Only block write operations when we have explicit permission metadata
+        # indicating write access. When permission is None (no metadata), treat
+        # as unknown and do not block based on write probe alone.
+        is_write = (
+            method in WRITE_METHODS
+            and permission is not None
+            and not _permission_is_read(permission)
+        )
         if is_write and not bool(write_capability.get("allowed")):
             reason = str(
                 write_capability.get("reason") or "Write capability not allowed"
             )
             blocked_tools.append({"tool": tool_name, "reason": reason})
+            continue
+
+        if is_write and not profile_allows_write(access_profile):
+            blocked_tools.append(
+                {
+                    "tool": tool_name,
+                    "reason": f"Write endpoint blocked by profile: {access_profile}",
+                }
+            )
             continue
 
         allowed_tools.append(tool_name)
@@ -120,26 +174,39 @@ def _openapi_tool_access() -> dict[str, Any]:
 
 def ping_server() -> Any:
     """Check whether the Immich server is reachable."""
-    return _request("GET", "/api/server/ping")
+    try:
+        return _request("GET", "/api/server/ping")
+    except Exception as exc:
+        return {"error": str(exc)}
 
 
 def get_server_info() -> Any:
     """Fetch public server info."""
-    return _request("GET", "/api/server-info")
+    try:
+        return _request("GET", "/api/server-info")
+    except Exception as exc:
+        return {"error": str(exc)}
 
 
 def get_server_version() -> Any:
     """Fetch Immich server version information."""
-    return _request("GET", "/api/server/version")
+    try:
+        return _request("GET", "/api/server/version")
+    except Exception as exc:
+        return {"error": str(exc)}
 
 
 def get_current_user() -> Any:
     """Fetch the current user (requires API key or token)."""
-    return _request("GET", "/api/users/me", require_auth=True)
+    try:
+        return _request("GET", "/api/users/me", require_auth=True)
+    except Exception as exc:
+        return {"error": str(exc)}
 
 
 def tool_access_report() -> dict[str, Any]:
     """Describe which tools are available based on API key permissions."""
+    logger.debug("Generating tool access report")
     capabilities = _discover_capabilities()
     allowed_tools = [
         # "openapi_summary",
@@ -161,6 +228,9 @@ def tool_access_report() -> dict[str, Any]:
     openapi_access = _openapi_tool_access()
     allowed_tools.extend(openapi_access["allowed_tools"])
     blocked_tools.extend(openapi_access["blocked_tools"])
+    logger.info(
+        f"Tool access report: {len(allowed_tools)} allowed, {len(blocked_tools)} blocked"
+    )
     return {"allowed_tools": allowed_tools, "blocked_tools": blocked_tools}
 
 
@@ -170,6 +240,7 @@ def write_capability_report() -> dict[str, str | bool]:
 
 
 def _register_tools(mcp) -> None:
+    logger.info("Registering MCP tools")
     capabilities = _discover_capabilities()
     for tool_func in (
         # openapi_summary,
@@ -189,6 +260,7 @@ def _register_tools(mcp) -> None:
 
 
 def _register_openapi_tools(mcp) -> None:
+    logger.info("Registering OpenAPI tools")
     access = _openapi_tool_access()
     spec = _fetch_openapi_spec()
     base_path = access["base_path"]
@@ -201,11 +273,7 @@ def _register_openapi_tools(mcp) -> None:
         path = entry["path"]
         operation = entry["operation"]
         tool_name = _tool_name_for_operation(method, path, operation)
-        if tool_name in used_names:
-            suffix = 2
-            while f"{tool_name}_{suffix}" in used_names:
-                suffix += 1
-            tool_name = f"{tool_name}_{suffix}"
+        tool_name = _deduplicate_name(tool_name, used_names)
         used_names.add(tool_name)
 
         if tool_name not in allowed:
@@ -224,6 +292,14 @@ def _register_openapi_tools(mcp) -> None:
         requires_auth = _operation_requires_auth(operation, spec)
         param_specs = _operation_param_specs(entry)
         body_spec = _operation_request_body_spec(operation)
+        
+        # Try to extract individual field specs from resolved body schema
+        body_field_specs = _operation_request_body_field_specs(operation, spec)
+        if body_field_specs:
+            # If we have resolved body fields, use them instead of generic 'body' parameter
+            param_specs.extend(body_field_specs)
+            body_spec = None  # Don't create a generic 'body' param
+        
         params_summary = _format_param_summary(param_specs, body_spec, spec)
         example_summary = _format_example(param_specs, body_spec)
         response_info = _response_schema_info(operation, spec)
@@ -269,6 +345,9 @@ def _register_openapi_tools(mcp) -> None:
                 headers = dict(kwargs.get("headers") or {})
                 json_body = kwargs.get("json_body")
 
+                # Track which specs have body location for reconstruction
+                body_fields: dict[str, Any] = {}
+
                 for spec in specs:
                     arg_name = spec["arg_name"]
                     if arg_name not in kwargs:
@@ -285,7 +364,15 @@ def _register_openapi_tools(mcp) -> None:
                         headers[spec["name"]] = value
                     elif location == "cookie":
                         _merge_cookie_header(headers, spec["name"], value)
+                    elif location == "body":
+                        # Accumulate body field values for later reconstruction
+                        body_fields[spec["name"]] = value
 
+                # Reconstruct JSON body from individual body_* parameters if any
+                if body_fields:
+                    json_body = body_fields
+
+                # Legacy 'body' parameter takes precedence if provided
                 if (
                     request_body
                     and "body" in kwargs
@@ -309,6 +396,8 @@ def _register_openapi_tools(mcp) -> None:
                             provided = spec["name"] in headers
                         elif location == "cookie":
                             provided = "cookie" in headers
+                        elif location == "body":
+                            provided = spec["name"] in body_fields
                     if not provided:
                         missing.append(f"{location}:{spec['name']}")
                 if (
@@ -324,14 +413,17 @@ def _register_openapi_tools(mcp) -> None:
 
                 final_path = _apply_path_params(path_template, path_params)
                 full_path = f"{base_path}{final_path}"
-                return _request(
-                    method,
-                    full_path,
-                    params=query_params,
-                    json_body=json_body,
-                    require_auth=require_auth,
-                    extra_headers=headers,
-                )
+                try:
+                    return _request(
+                        method,
+                        full_path,
+                        params=query_params,
+                        json_body=json_body,
+                        require_auth=require_auth,
+                        extra_headers=headers,
+                    )
+                except Exception as exc:
+                    return {"error": str(exc)}
 
             signature_params: list[inspect.Parameter] = []
             annotations: dict[str, Any] = {"return": Any}
