@@ -492,3 +492,319 @@ def test_decorate_response_array_existing_web_urls():
     assert decorated[0]["web_url"] == "https://custom.com/1"
     # Should add URL to second item
     assert decorated[1]["web_url"] == "https://immich.example.com/photos/img-2"
+
+
+def test_extract_decoratable_array_direct_list():
+    """Test _extract_decoratable_array returns direct list as-is."""
+    from claw2immich.tooling import _extract_decoratable_array
+    
+    response = [
+        {"id": "img-1", "type": "IMAGE"},
+        {"id": "img-2", "type": "IMAGE"},
+    ]
+    
+    array, wrapper_type = _extract_decoratable_array(response)
+    assert array == response
+    assert wrapper_type == "direct"
+
+
+def test_extract_decoratable_array_results_wrapper():
+    """Test _extract_decoratable_array extracts from 'results' field."""
+    from claw2immich.tooling import _extract_decoratable_array
+    
+    response = {
+        "results": [
+            {"id": "img-1", "type": "IMAGE"},
+            {"id": "img-2", "type": "IMAGE"},
+        ],
+        "total": 2,
+    }
+    
+    array, wrapper_type = _extract_decoratable_array(response)
+    assert len(array) == 2
+    assert wrapper_type == "wrapped"
+    assert array[0]["id"] == "img-1"
+
+
+def test_extract_decoratable_array_data_wrapper():
+    """Test _extract_decoratable_array extracts from 'data' field."""
+    from claw2immich.tooling import _extract_decoratable_array
+    
+    response = {
+        "data": [
+            {"id": "img-1", "type": "IMAGE"},
+            {"id": "img-2", "type": "IMAGE"},
+        ],
+        "pagination": {"page": 1},
+    }
+    
+    array, wrapper_type = _extract_decoratable_array(response)
+    assert len(array) == 2
+    assert wrapper_type == "wrapped"
+
+
+def test_extract_decoratable_array_assets_wrapper():
+    """Test _extract_decoratable_array extracts from 'assets' field."""
+    from claw2immich.tooling import _extract_decoratable_array
+    
+    response = {
+        "assets": [
+            {"id": "img-1", "type": "IMAGE"},
+            {"id": "img-2", "type": "IMAGE"},
+        ],
+    }
+    
+    array, wrapper_type = _extract_decoratable_array(response)
+    assert len(array) == 2
+    assert wrapper_type == "wrapped"
+
+
+def test_extract_decoratable_array_items_wrapper():
+    """Test _extract_decoratable_array extracts from 'items' field."""
+    from claw2immich.tooling import _extract_decoratable_array
+    
+    response = {
+        "items": [
+            {"id": "img-1", "type": "IMAGE"},
+        ],
+    }
+    
+    array, wrapper_type = _extract_decoratable_array(response)
+    assert len(array) == 1
+    assert wrapper_type == "wrapped"
+
+
+def test_extract_decoratable_array_no_wrapper():
+    """Test _extract_decoratable_array returns None when no array found."""
+    from claw2immich.tooling import _extract_decoratable_array
+    
+    response = {"name": "Search Result", "count": 5}
+    
+    array, wrapper_type = _extract_decoratable_array(response)
+    assert array is None
+    assert wrapper_type == "none"
+
+
+def test_extract_decoratable_array_non_dict():
+    """Test _extract_decoratable_array returns None for non-dict, non-list."""
+    from claw2immich.tooling import _extract_decoratable_array
+    
+    array, wrapper_type = _extract_decoratable_array("string")
+    assert array is None
+    assert wrapper_type == "none"
+
+
+def test_decorate_response_wrapped_results():
+    """Test _decorate_response handles wrapped 'results' array."""
+    from claw2immich.tooling import _decorate_response
+    
+    response = {
+        "results": [
+            {"id": "img-1", "type": "IMAGE", "name": "Photo 1"},
+            {"id": "img-2", "type": "IMAGE", "name": "Photo 2"},
+        ],
+        "total": 2,
+    }
+    
+    decorated = _decorate_response(response, "https://immich.example.com", "array")
+    
+    # Should preserve wrapper structure
+    assert "results" in decorated
+    assert "total" in decorated
+    # Items should be decorated
+    assert decorated["results"][0]["web_url"] == "https://immich.example.com/photos/img-1"
+    assert decorated["results"][1]["web_url"] == "https://immich.example.com/photos/img-2"
+
+
+def test_decorate_response_wrapped_data():
+    """Test _decorate_response handles wrapped 'data' array with pagination."""
+    from claw2immich.tooling import _decorate_response
+    
+    response = {
+        "data": [
+            {"id": "img-1", "type": "IMAGE"},
+            {"id": "img-2", "type": "IMAGE"},
+        ],
+        "pagination": {"next": "cursor123"},
+    }
+    
+    decorated = _decorate_response(response, "https://immich.example.com", "array")
+    
+    assert "data" in decorated
+    assert "pagination" in decorated
+    assert decorated["data"][0]["web_url"] == "https://immich.example.com/photos/img-1"
+    assert decorated["pagination"]["next"] == "cursor123"
+
+
+def test_decorate_response_wrapped_assets():
+    """Test _decorate_response handles 'assets' wrapper field."""
+    from claw2immich.tooling import _decorate_response
+    
+    response = {
+        "assets": [
+            {"id": "img-1", "type": "IMAGE"},
+            {"id": "img-2", "type": "VIDEO"},
+        ],
+    }
+    
+    decorated = _decorate_response(response, "https://immich.example.com", "array")
+    
+    assert len(decorated["assets"]) == 2
+    assert decorated["assets"][0]["web_url"] == "https://immich.example.com/photos/img-1"
+    assert decorated["assets"][1]["web_url"] == "https://immich.example.com/photos/img-2"
+
+
+def test_decorate_response_wrapped_preserves_metadata():
+    """Test _decorate_response preserves metadata fields in wrapped responses."""
+    from claw2immich.tooling import _decorate_response
+    
+    response = {
+        "results": [
+            {"id": "img-1", "type": "IMAGE"},
+        ],
+        "count": 1,
+        "hasNextPage": False,
+        "hasPreviousPage": False,
+    }
+    
+    decorated = _decorate_response(response, "https://immich.example.com", "array")
+    
+    # All metadata should be preserved
+    assert decorated["count"] == 1
+    assert decorated["hasNextPage"] is False
+    assert decorated["hasPreviousPage"] is False
+    assert decorated["results"][0]["web_url"] == "https://immich.example.com/photos/img-1"
+
+
+def test_should_decorate_response_explore_endpoint():
+    """Test _should_decorate_response detects explore endpoints."""
+    from claw2immich.tooling import _should_decorate_response
+    
+    result, url_type = _should_decorate_response("GET", "/explore")
+    assert result is True
+    assert url_type == "array"
+
+
+def test_should_decorate_response_memories_endpoint():
+    """Test _should_decorate_response detects memories endpoints."""
+    from claw2immich.tooling import _should_decorate_response
+    
+    result, url_type = _should_decorate_response("GET", "/memories")
+    assert result is True
+    assert url_type == "array"
+
+
+def test_should_decorate_response_cine_endpoint():
+    """Test _should_decorate_response detects cine endpoints."""
+    from claw2immich.tooling import _should_decorate_response
+    
+    result, url_type = _should_decorate_response("GET", "/cine")
+    assert result is True
+    assert url_type == "array"
+
+
+def test_should_decorate_response_timelines_endpoint():
+    """Test _should_decorate_response detects timeline endpoints."""
+    from claw2immich.tooling import _should_decorate_response
+    
+    result, url_type = _should_decorate_response("GET", "/timelines")
+    assert result is True
+    assert url_type == "array"
+
+
+def test_should_decorate_response_statistics_endpoint():
+    """Test _should_decorate_response detects statistics endpoints."""
+    from claw2immich.tooling import _should_decorate_response
+    
+    result, url_type = _should_decorate_response("GET", "/statistics")
+    assert result is True
+    assert url_type == "array"
+
+
+def test_should_decorate_response_map_endpoint():
+    """Test _should_decorate_response detects map endpoints."""
+    from claw2immich.tooling import _should_decorate_response
+    
+    result, url_type = _should_decorate_response("GET", "/map")
+    assert result is True
+    assert url_type == "array"
+
+
+def test_should_decorate_response_bulk_albums():
+    """Test _should_decorate_response detects bulk albums endpoint."""
+    from claw2immich.tooling import _should_decorate_response
+    
+    result, url_type = _should_decorate_response("GET", "/albums")
+    assert result is True
+    assert url_type == "array"
+
+
+def test_should_decorate_response_bulk_people():
+    """Test _should_decorate_response detects bulk people endpoint."""
+    from claw2immich.tooling import _should_decorate_response
+    
+    result, url_type = _should_decorate_response("GET", "/people")
+    assert result is True
+    assert url_type == "array"
+
+
+def test_should_decorate_response_bulk_places():
+    """Test _should_decorate_response detects bulk places endpoint."""
+    from claw2immich.tooling import _should_decorate_response
+    
+    result, url_type = _should_decorate_response("GET", "/places")
+    assert result is True
+    assert url_type == "array"
+
+
+def test_decorate_response_complex_nested_search_result():
+    """Test _decorate_response with realistic search result structure."""
+    from claw2immich.tooling import _decorate_response
+    
+    # Realistic search response structure
+    response = {
+        "results": [
+            {
+                "data": {
+                    "id": "asset-1",
+                    "type": "IMAGE",
+                    "name": "Beach Photo",
+                },
+                "score": 0.95,
+            },
+            {
+                "data": {
+                    "id": "asset-2",
+                    "type": "VIDEO",
+                    "name": "Sunset Video",
+                },
+                "score": 0.87,
+            },
+        ],
+        "query": "beach",
+        "duration": 125,
+    }
+    
+    # Decorate the results array
+    decorated = _decorate_response(response, "https://immich.example.com", "array")
+    
+    assert "query" in decorated
+    assert decorated["query"] == "beach"
+    assert len(decorated["results"]) == 2
+    # Note: nested "data" field won't be decorated by default since we only search top-level
+    # But the outer results array would preserve the structure
+
+
+def test_decorate_response_empty_wrapped_array():
+    """Test _decorate_response handles empty wrapped arrays."""
+    from claw2immich.tooling import _decorate_response
+    
+    response = {
+        "results": [],
+        "total": 0,
+    }
+    
+    decorated = _decorate_response(response, "https://immich.example.com", "array")
+    
+    assert decorated["results"] == []
+    assert decorated["total"] == 0

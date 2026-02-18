@@ -65,9 +65,29 @@ def _should_decorate_response(method: str, path: str) -> tuple[bool, str | None]
         return True, "place"
     
     # Array endpoints that may contain type fields (IMAGE, VIDEO, etc.)
-    if path.startswith("/search/") or path.startswith("/assets"):
+    # Search endpoints
+    if path.startswith("/search/"):
         return True, "array"
-    if path.startswith("/albums") or path.startswith("/people") or path.startswith("/places"):
+    
+    # Collection/bulk endpoints for assets, albums, people, places
+    if path in ("/assets", "/albums", "/people", "/places"):
+        return True, "array"
+    
+    # Browse/explore/discovery endpoints
+    if any(
+        path.startswith(prefix)
+        for prefix in (
+            "/cine",
+            "/explore",
+            "/memories",
+            "/map",
+            "/duplicates",
+        )
+    ):
+        return True, "array"
+    
+    # Stats/timeline endpoints that often return arrays
+    if path.startswith("/statistics") or path.startswith("/timelines"):
         return True, "array"
     
     return False, None
@@ -132,33 +152,107 @@ def _detect_response_type(item: Any) -> str | None:
     return None
 
 
+def _extract_decoratable_array(response: Any) -> tuple[list[Any] | None, str]:
+    """
+    Extract a decoratable array from a response, handling nested structures.
+    
+    Supports various response formats:
+    - Direct array: [...]
+    - Wrapped array: {"results": [...], ...}, {"data": [...], ...}, {"assets": [...], ...}
+    - Other wrapped formats with nested arrays
+    
+    Args:
+        response: Response data (dict, list, or other)
+    
+    Returns:
+        Tuple of (array, wrapper_type) where:
+        - array: the extracted array or None if not found
+        - wrapper_type: 'direct' for direct array, 'wrapped' for dict with array field, or 'none' if not found
+    """
+    if isinstance(response, list):
+        return response, "direct"
+    
+    if not isinstance(response, dict):
+        return None, "none"
+    
+    # Common wrapper field names for arrays
+    array_field_names = (
+        "results",
+        "data",
+        "items",
+        "assets",
+        "albums",
+        "people",
+        "places",
+        "photos",
+        "memories",
+        "timelines",
+        "statistics",
+    )
+    
+    for field_name in array_field_names:
+        if field_name in response and isinstance(response[field_name], list):
+            return response[field_name], "wrapped"
+    
+    return None, "none"
+
+
 def _decorate_response(
     response: Any, external_domain: str | None, url_type: str
 ) -> Any:
     """
     Add web_url field(s) to a response for direct browsing.
     
-    Handles both single entity responses and array responses:
+    Handles various response structures:
     - Single entity: adds web_url field directly
-    - Array: processes each item and adds web_url to decoratable items
-    - Array with 'type' field: auto-detects URL type from 'type': 'IMAGE', 'VIDEO', etc.
+    - Direct array: processes each item and adds web_url to decoratable items
+    - Wrapped array: extracts array from common wrapper fields (results, data, assets, etc.)
+    - Mixed structures: applies decoration to decoratable items and preserves structure
     
     Args:
-        response: Response data (dict or list)
+        response: Response data (dict, list, or other)
         external_domain: Base domain for URLs (e.g., https://immich.example.com)
         url_type: Type of URL to build ('asset', 'album', 'person', 'place', or 'array' for auto-detection)
     
     Returns:
-        Modified response with web_url field(s) added
+        Modified response with web_url field(s) added, preserving original structure
     """
     if not external_domain:
         return response
     
-    # Handle array responses
-    if isinstance(response, list):
-        return [_decorate_single_item(item, external_domain, url_type) for item in response]
+    # Try to extract a decoratable array (handles both direct and wrapped)
+    decoratable_array, wrapper_type = _extract_decoratable_array(response)
     
-    # Handle single object responses
+    if decoratable_array and wrapper_type == "direct":
+        # Direct array: decorate each item
+        return [_decorate_single_item(item, external_domain, url_type) for item in decoratable_array]
+    
+    if decoratable_array and wrapper_type == "wrapped":
+        # Wrapped array: decorate items and return modified response with updated array
+        decorated_array = [_decorate_single_item(item, external_domain, url_type) for item in decoratable_array]
+        # Update the response with decorated array
+        result = dict(response)  # Shallow copy
+        # Find which field contains the array and update it
+        array_field_names = (
+            "results",
+            "data",
+            "items",
+            "assets",
+            "albums",
+            "people",
+            "places",
+            "photos",
+            "memories",
+            "timelines",
+            "statistics",
+        )
+        for field_name in array_field_names:
+            if field_name in result and isinstance(result[field_name], list):
+                result[field_name] = decorated_array
+                break
+        return result
+    
+    # Not an array - try to decorate as single item if it's a dict
     if isinstance(response, dict):
         return _decorate_single_item(response, external_domain, url_type)
     

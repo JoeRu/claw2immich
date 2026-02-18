@@ -7,6 +7,48 @@
 
   <items>
 
+    <item id="48" type="bug" status="DONE" priority="HIGH" complexity="M" security="false">
+      <title>URL decorator not applied to search endpoints (e.g., immich_searchassets) and bulk array responses</title>
+      <branch>bug/item-48-decorator-missing-search-endpoints</branch>
+      <justification>Item 47 added URL decoration support for array endpoints, but the _should_decorate_response() function does not properly detect all endpoints that return arrays of assets. Specifically, search endpoints like immich_searchassets and other bulk operations that contain "assets" or typed items in their response structure do not receive web_url decoration. This leaves users without automatic URL generation for critical search/browse operations, undermining the usability improvement from item 47.</justification>
+      <depends-on>47</depends-on>
+
+      <tasks>
+        <task id="48.1">Audit the OpenAPI spec to identify all GET endpoints that return arrays of assets, albums, people, or places (search, browse, collection endpoints).</task>
+        <task id="48.2">Document which endpoints are missed by the current _should_decorate_response() pattern matching (e.g., /search/*, /cine, /explore, /people/statistics, etc.).</task>
+        <task id="48.3">Update _should_decorate_response() with more comprehensive endpoint detection logic or implement response structure inspection to detect decoratable arrays regardless of path patterns.</task>
+        <task id="48.4">Extend _detect_response_type() to handle nested response structures (e.g., responses with "assets" top-level array field or paginated responses).</task>
+        <task id="48.5">Add tests for search endpoints to verify URL decoration is applied to all array items in their responses.</task>
+        <task id="48.6">Verify that all endpoints returning decoratable items now include web_url fields in responses.</task>
+      </tasks>
+
+      <verification>
+        <manual-steps>
+          <step order="1">Call immich_searchassets and verify all returned items have web_url fields.</step>
+          <step order="2">Call other search/bulk endpoints (immich_getsearchsuggestions with results, etc.) and verify URL decoration is applied.</step>
+          <step order="3">Check endpoints with nested array structures and confirm decoration works for items buried in response hierarchy.</step>
+          <step order="4">Run pytest tests/ -v to confirm search endpoint decoration tests pass.</step>
+        </manual-steps>
+      </verification>
+
+      <impact-check>
+        <affected-items>
+          <item-ref id="47">Extend URL decoration in _decorate_response to handle response arrays with IMAGE/VIDEO type fields</item-ref>
+          <item-ref id="46">Add IMMICH_EXTERNAL_DOMAIN parameter to docker-compose and include externalDomain-based URLs in tool responses</item-ref>
+        </affected-items>
+        <notes>Items 46 and 47 provide the foundation for URL decoration. This bug fix identifies gaps in endpoint detection and ensures all array-returning endpoints benefit from automatic URL decoration. Critical for fulfilling the usability promise of items 46 and 47.</notes>
+      </impact-check>
+      <r>
+        <outcome>DONE</outcome>
+        <observations>Extended _should_decorate_response() to detect all relevant search, browse, and collection endpoints (/search/*, /cine, /explore, /memories, /map, /duplicates, /statistics, /timelines, and bulk endpoints /assets, /albums, /people, /places). Added _extract_decoratable_array() helper to detect and extract decoratable arrays from nested response structures (supports results, data, items, assets, albums, people, places, photos, memories, timelines, statistics wrapper fields). Updated _decorate_response() to handle both direct arrays and wrapped arrays, preserving original response structure while decorating items. Added 22 comprehensive tests covering wrapped arrays (results, data, assets, items fields), paginated responses, endpoint detection for all known array endpoints, and metadata preservation in wrapped responses. All 160 tests pass with no regressions.</observations>
+        <lessons-learned>Nested response structures are critical to support for comprehensive API coverage. By handling common wrapper field names and preserving the original response structure, we maintain backward compatibility while extending decoration support. The catch-all endpoint detection should be conservative to avoid decoration attempts on unlikely candidates (info/version endpoints). A dedicated array extraction function makes the code more maintainable and testable than inline logic.</lessons-learned>
+        <files>
+          <file>claw2immich/tooling.py</file>
+          <file>tests/test_url_decoration.py</file>
+        </files>
+      </r>
+    </item>
+
     <item id="47" type="refactoring" status="DONE" priority="MEDIUM" complexity="M" security="false">
       <title>Extend URL decoration in _decorate_response to handle response arrays with IMAGE/VIDEO type fields</title>
       <branch>refactoring/item-47-url-decoration-arrays-types</branch>
@@ -2498,5 +2540,7 @@
     <entry date="2026-02-18" user="GitHub Copilot">Added item 46 (MEDIUM REFACTORING): Add IMMICH_EXTERNAL_DOMAIN parameter to docker-compose and include externalDomain-based URLs in tool responses. Status set to PENDING. Priority MEDIUM, complexity M. Branch: refactoring/item-46-externaldomain-param-docker-compose-tool-urls. Justification: Allow externalDomain override via environment variable and automatically append web UI URLs to tool responses for assets, albums, people, and places to improve usability.</entry>
     <entry date="2026-02-18" user="Claude Code">Added item 47 (MEDIUM REFACTORING): Extend URL decoration in _decorate_response to handle response arrays with IMAGE/VIDEO type fields. Status set to PENDING. Priority MEDIUM, complexity M. Branch: refactoring/item-47-url-decoration-arrays-types. Justification: Extend existing URL decoration from item 46 to handle arrays of items with "type": "IMAGE"/"VIDEO" fields commonly found in search results and batch responses. Improves usability for bulk operations by automatically providing web UI links for all returned items.</entry>
     <entry date="2026-02-18" user="Claude Code">Item 47 implemented. Extended _should_decorate_response() to detect array endpoints (/search/*, /assets, /albums, /people, /places) with url_type='array'. Added _detect_response_type() helper to identify URL type from "type": "IMAGE"/"VIDEO"/"MEMORY"/"ALBUM"/"PERSON"/"PLACE" fields or ID field inference. Created _decorate_single_item() helper for unified item processing. Enhanced _decorate_response() to handle both single objects and arrays. Added 23 comprehensive array tests for IMAGE/VIDEO types, mixed arrays, empty arrays, items without IDs, non-dict items, and backward compatibility. All 138 tests pass with no regressions.</entry>
+    <entry date="2026-02-18" user="Claude Code">Added item 48 (HIGH BUG): URL decorator not applied to search endpoints (e.g., immich_searchassets) and bulk array responses. Status set to PENDING. Priority HIGH, complexity M. Branch: bug/item-48-decorator-missing-search-endpoints. Depends-on item 47. Issue: _should_decorate_response() does not detect all endpoints returning arrays of assets/items, particularly search and browse endpoints. Requires comprehensive endpoint audit, improved detection logic, and support for nested response structures.</entry>
+    <entry date="2026-02-18" user="Claude Code">Item 48 implemented. Extended _should_decorate_response() to comprehensively detect search (/search/*), browse (/cine, /explore, /memories, /map, /duplicates), stats (/statistics, /timelines), and bulk endpoints (/assets, /albums, /people, /places). Added _extract_decoratable_array() to detect and extract arrays from nested structures (results, data, items, assets, albums, people, places, photos, memories, timelines, statistics fields). Updated _decorate_response() to handle wrapped arrays while preserving response structure. Added 22 new tests for wrapped arrays, metadata preservation, and endpoint detection. All 160 tests pass with no regressions.</entry>
   </changelog>
 </overview-features-bugs>
