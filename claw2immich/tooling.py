@@ -140,14 +140,21 @@ def _detect_response_type(item: Any) -> str | None:
             return "place"
     
     # Try to infer from ID field names
-    if "id" in item and not any(k in item for k in ("albumId", "personId", "placeId")):
-        return "asset"
-    if "albumId" in item:
-        return "album"
     if "personId" in item:
         return "person"
+    if "albumId" in item:
+        return "album"
     if "placeId" in item:
         return "place"
+    
+    # Check for person-specific fields (for person objects that may only have "id")
+    # Common person fields: birthDate, thumbnailPath, email
+    if any(k in item for k in ("birthDate", "thumbnailPath")):
+        return "person"
+    
+    # Default: if has "id" field, likely an asset
+    if "id" in item:
+        return "asset"
     
     return None
 

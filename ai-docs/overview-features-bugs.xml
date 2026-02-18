@@ -7,6 +7,40 @@
 
   <items>
 
+    <item id="49" type="bug" status="IN_PROGRESS" priority="HIGH" complexity="S" security="false">
+      <title>Person objects decorated with /photos/{id} instead of /people/{id} URLs</title>
+      <branch>bug/item-49-person-url-decoration-incorrect</branch>
+      <justification>URL decoration (_decorate_single_item) generates incorrect `/photos/{id}` URLs for person objects, when they should generate `/people/{id}` URLs. This occurs when person objects returned from endpoints like /search/* or /people endpoints have only an "id" field (not "personId") and lack an explicit "type": "PERSON" field. The inference logic in _detect_response_type() falls back to treating them as assets (since they have "id" but no distinguishing ID field like "personId" or "albumId"), resulting in broken web UI links for people. This undermines the usability improvement from URL decoration items 46-48.</justification>
+      <depends-on>48</depends-on>
+
+      <tasks>
+        <task id="49.1">Audit real Immich API responses from search/people endpoints to identify the actual field structure of person objects (check for "id", "name", "email", "thumbnailPath", "type" fields and their values).</task>
+        <task id="49.2">Identify why person objects may lack "personId" field and/or "type": "PERSON" field in responses.</task>
+        <task id="49.3">Improve _detect_response_type() to correctly identify person objects by adding heuristics for person-specific fields (e.g., if has "birthDate" or "thumbnailPath" and "name" field pattern, likely a person object).</task>
+        <task id="49.4">Add test cases that demonstrate the bug: person objects with "id" but no "personId" or "type" field should still be decorated with /people/{id} URLs.</task>
+        <task id="49.5">Verify the fix works for both single person responses and arrays of people (from search results, /people endpoint, etc.).</task>
+        <task id="49.6">Run full test suite to confirm no regressions in asset/album/place decoration.</task>
+      </tasks>
+
+      <verification>
+        <manual-steps>
+          <step order="1">Call a search endpoint that returns people (e.g., /search with results containing person objects) and verify each person has web_url with /people/{id} pattern, not /photos/{id}.</step>
+          <step order="2">Check /people endpoint responses and confirm all returned people objects have correct /people/{id} URLs.</step>
+          <step order="3">Verify that image/asset items still receive /photos/{id} URLs (no regression).</step>
+          <step order="4">Run pytest tests/test_url_decoration.py -v to confirm all tests pass, including new person decoration tests.</step>
+        </manual-steps>
+      </verification>
+
+      <impact-check>
+        <affected-items>
+          <item-ref id="48">URL decorator not applied to search endpoints and bulk array responses</item-ref>
+          <item-ref id="47">Extend URL decoration in _decorate_response to handle response arrays with IMAGE/VIDEO type fields</item-ref>
+          <item-ref id="46">Add IMMICH_EXTERNAL_DOMAIN parameter to docker-compose and include externalDomain-based URLs in tool responses</item-ref>
+        </affected-items>
+        <notes>Items 46-48 provide URL decoration foundation. This bug fix addresses a correctness issue in type detection that breaks user experience when accessing people objects. High priority because it affects all search/people operations and produces unclickable links.</notes>
+      </impact-check>
+    </item>
+
     <item id="48" type="bug" status="DONE" priority="HIGH" complexity="M" security="false">
       <title>URL decorator not applied to search endpoints (e.g., immich_searchassets) and bulk array responses</title>
       <branch>bug/item-48-decorator-missing-search-endpoints</branch>
@@ -2542,5 +2576,6 @@
     <entry date="2026-02-18" user="Claude Code">Item 47 implemented. Extended _should_decorate_response() to detect array endpoints (/search/*, /assets, /albums, /people, /places) with url_type='array'. Added _detect_response_type() helper to identify URL type from "type": "IMAGE"/"VIDEO"/"MEMORY"/"ALBUM"/"PERSON"/"PLACE" fields or ID field inference. Created _decorate_single_item() helper for unified item processing. Enhanced _decorate_response() to handle both single objects and arrays. Added 23 comprehensive array tests for IMAGE/VIDEO types, mixed arrays, empty arrays, items without IDs, non-dict items, and backward compatibility. All 138 tests pass with no regressions.</entry>
     <entry date="2026-02-18" user="Claude Code">Added item 48 (HIGH BUG): URL decorator not applied to search endpoints (e.g., immich_searchassets) and bulk array responses. Status set to PENDING. Priority HIGH, complexity M. Branch: bug/item-48-decorator-missing-search-endpoints. Depends-on item 47. Issue: _should_decorate_response() does not detect all endpoints returning arrays of assets/items, particularly search and browse endpoints. Requires comprehensive endpoint audit, improved detection logic, and support for nested response structures.</entry>
     <entry date="2026-02-18" user="Claude Code">Item 48 implemented. Extended _should_decorate_response() to comprehensively detect search (/search/*), browse (/cine, /explore, /memories, /map, /duplicates), stats (/statistics, /timelines), and bulk endpoints (/assets, /albums, /people, /places). Added _extract_decoratable_array() to detect and extract arrays from nested structures (results, data, items, assets, albums, people, places, photos, memories, timelines, statistics fields). Updated _decorate_response() to handle wrapped arrays while preserving response structure. Added 22 new tests for wrapped arrays, metadata preservation, and endpoint detection. All 160 tests pass with no regressions.</entry>
+    <entry date="2026-02-18" user="GitHub Copilot">Added item 49 (HIGH BUG): Person objects decorated with /photos/{id} instead of /people/{id} URLs. Status set to PENDING. Priority HIGH, complexity S. Branch: bug/item-49-person-url-decoration-incorrect. Depends-on item 48. Issue: URL decoration incorrectly generates /photos/{id} URLs for person objects when they lack explicit "type": "PERSON" field or "personId" field (only have "id"). The inference logic in _detect_response_type() falls back to asset detection, breaking person object links in search results and /people endpoints. Requires improving type detection heuristics for person-specific fields.</entry>
   </changelog>
 </overview-features-bugs>

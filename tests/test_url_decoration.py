@@ -808,3 +808,90 @@ def test_decorate_response_empty_wrapped_array():
     
     assert decorated["results"] == []
     assert decorated["total"] == 0
+
+
+def test_detect_response_type_person_with_birthdate():
+    """Test _detect_response_type identifies person by birthDate field (no explicit type)."""
+    from claw2immich.tooling import _detect_response_type
+    
+    # Person object with just "id" and "birthDate" (common in search results)
+    item = {"id": "person-123", "name": "John", "birthDate": "1990-01-01"}
+    url_type = _detect_response_type(item)
+    assert url_type == "person"
+
+
+def test_detect_response_type_person_with_thumbnailpath():
+    """Test _detect_response_type identifies person by thumbnailPath field (no explicit type)."""
+    from claw2immich.tooling import _detect_response_type
+    
+    # Person object with just "id" and "thumbnailPath" (common in people endpoint)
+    item = {"id": "person-456", "name": "Jane", "thumbnailPath": "/path/to/thumb.jpg"}
+    url_type = _detect_response_type(item)
+    assert url_type == "person"
+
+
+def test_decorate_response_person_with_id_and_birthdate():
+    """Test _decorate_response correctly decorates person with id + birthDate (no personId)."""
+    from claw2immich.tooling import _decorate_response
+    
+    # Person object from search results with just "id" field
+    response = {"id": "person-123", "name": "John", "birthDate": "1990-01-01"}
+    decorated = _decorate_response(response, "https://immich.example.com", "array")
+    
+    # Should have correct /people/{id} URL, not /photos/{id}
+    assert "web_url" in decorated
+    assert decorated["web_url"] == "https://immich.example.com/people/person-123"
+
+
+def test_decorate_response_person_with_id_and_thumbnailpath():
+    """Test _decorate_response correctly decorates person with id + thumbnailPath (no personId)."""
+    from claw2immich.tooling import _decorate_response
+    
+    # Person object from /people endpoint with just "id" field
+    response = {"id": "person-456", "name": "Jane", "thumbnailPath": "/path/to/thumb.jpg"}
+    decorated = _decorate_response(response, "https://immich.example.com", "array")
+    
+    # Should have correct /people/{id} URL, not /photos/{id}
+    assert "web_url" in decorated
+    assert decorated["web_url"] == "https://immich.example.com/people/person-456"
+
+
+def test_decorate_response_person_array_with_birthdate():
+    """Test _decorate_response correctly decorates array of people with birthDate field."""
+    from claw2immich.tooling import _decorate_response
+    
+    # Array of people (e.g., from search results)
+    response = [
+        {"id": "person-1", "name": "Alice", "birthDate": "1990-01-01"},
+        {"id": "person-2", "name": "Bob", "birthDate": "1985-06-15"},
+    ]
+    decorated = _decorate_response(response, "https://immich.example.com", "array")
+    
+    # Each person should have correct /people/{id} URL
+    assert len(decorated) == 2
+    assert decorated[0]["web_url"] == "https://immich.example.com/people/person-1"
+    assert decorated[1]["web_url"] == "https://immich.example.com/people/person-2"
+
+
+def test_decorate_response_asset_still_works_after_fix():
+    """Test that image/asset decoration still works correctly (regression test)."""
+    from claw2immich.tooling import _decorate_response
+    
+    # Image asset with just "id" (no birthDate, thumbnailPath, etc.)
+    response = {"id": "asset-123", "type": "IMAGE", "filename": "photo.jpg"}
+    decorated = _decorate_response(response, "https://immich.example.com", "asset")
+    
+    # Should have /photos/{id} URL
+    assert decorated["web_url"] == "https://immich.example.com/photos/asset-123"
+
+
+def test_decorate_response_person_birthdate_has_priority_over_generic_id():
+    """Test that person-specific fields take priority in type detection."""
+    from claw2immich.tooling import _decorate_response
+    
+    # Ambiguous: has "id" which could be interpreted as asset, but has "birthDate" which indicates person
+    response = {"id": "entity-789", "birthDate": "1995-03-20", "name": "Chris"}
+    decorated = _decorate_response(response, "https://immich.example.com", "array")
+    
+    # Should be treated as person due to birthDate field
+    assert decorated["web_url"] == "https://immich.example.com/people/entity-789"
