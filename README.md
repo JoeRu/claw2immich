@@ -1,6 +1,7 @@
 # claw2immich
 
-[![CI](https://github.com/janthoene/claw2immich/actions/workflows/ci.yml/badge.svg)](https://github.com/janthoene/claw2immich/actions/workflows/ci.yml)
+[![Docker](https://github.com/JoeRu/claw2immich/actions/workflows/build-docker.yml/badge.svg)](https://github.com/JoeRu/claw2immich/actions/workflows/build-docker.yml)
+![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/JoeRu/claw2immich/ci.yml?branch=main)
 
 claw2immich is a Python MCP (Model Context Protocol) server that exposes selected Immich REST API endpoints. It uses the Immich OpenAPI spec for API metadata and surfaces a small, permission-aware tool set for common read-only checks.
 
