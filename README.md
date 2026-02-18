@@ -25,6 +25,8 @@ OpenAPI tool descriptions include:
 - `example:` short call sketch for required inputs
 - `returns:` response schema title and key fields when available
 
+OpenAPI tool responses for assets, albums, people, and places include a `web_url` field with a direct link to the item in the Immich web UI (when `IMMICH_EXTERNAL_DOMAIN` is configured or discovered from server settings).
+
 OpenAPI tool parameters use explicit, prefixed fields so MCP clients can discover what to set:
 - `path_<name>` for path parameters
 - `query_<name>` for query parameters
@@ -45,6 +47,7 @@ Environment variables:
 - `IMMICH_BASE_URL` (default `http://localhost:2283`)
 - `IMMICH_API_KEY`
 - `IMMICH_API_TOKEN`
+- `IMMICH_EXTERNAL_DOMAIN` (optional: domain for web UI links like `https://immich.example.com`; if not set, discovered from `/api/server-config`)
 - `IMMICH_PROFILE` (optional: `read_only`, `read_write`, or `full_scope`)
 - `IMMICH_WRITE_PROBE_PATH` (default `/api/assets`)
 - `IMMICH_WRITE_PROBE_METHOD` (default `POST`)

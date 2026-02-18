@@ -14,8 +14,8 @@ def build_server_instructions(external_domain: str | None) -> str:
         domain_note = f"External domain for link building: {external_domain}. "
     else:
         domain_note = (
-            "External domain for link building: call GET /api/server-config "
-            "and read externalDomain. "
+            "External domain for link building: set IMMICH_EXTERNAL_DOMAIN env var "
+            "or call GET /api/server-config and read externalDomain. "
         )
     return (
         "claw2immich MCP server for Immich. "
@@ -23,6 +23,7 @@ def build_server_instructions(external_domain: str | None) -> str:
         f"{domain_note}"
         "URL patterns: <externalDomain>/photos/<asset-id>, "
         "/albums/<album-id>, /people/<person-id>. "
+        "Tool responses for assets, albums, and people include web_url field for direct browsing. "
         "Parameter naming: path_<name>, query_<name>, header_<name>, "
         "cookie_<name>, body. Legacy path_params/query_params/headers/json_body "
         "still accepted. "

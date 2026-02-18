@@ -8,7 +8,8 @@ def test_resolve_external_domain_success():
     
     mock_response = {"externalDomain": "immich.example.com"}
     
-    with patch("claw2immich.mcp_app._request", return_value=mock_response):
+    # Patch _request at the source where it's imported from
+    with patch("claw2immich.http_client._request", return_value=mock_response):
         domain = _resolve_external_domain()
         assert domain == "immich.example.com"
 
@@ -19,50 +20,62 @@ def test_resolve_external_domain_alternative_field():
     
     mock_response = {"external_domain": "immich.example.com"}
     
-    with patch("claw2immich.mcp_app._request", return_value=mock_response):
+    # Patch _request at the source where it's imported from
+    with patch("claw2immich.http_client._request", return_value=mock_response):
         domain = _resolve_external_domain()
         assert domain == "immich.example.com"
 
 
 def test_resolve_external_domain_empty():
-    """Test _resolve_external_domain with empty externalDomain."""
+    """Test _resolve_external_domain with empty externalDomain falls back to base URL."""
     from claw2immich.mcp_app import _resolve_external_domain
     
     mock_response = {"externalDomain": ""}
     
-    with patch("claw2immich.mcp_app._request", return_value=mock_response):
-        domain = _resolve_external_domain()
-        assert domain is None
+    # When API returns empty domain, should fall back to IMMICH_BASE_URL
+    # Patch both _request and _get_config to control both fallbacks
+    with patch("claw2immich.http_client._request", return_value=mock_response):
+        with patch("claw2immich.config._get_config", return_value={"base_url": ""}):
+            domain = _resolve_external_domain()
+            assert domain is None
 
 
 def test_resolve_external_domain_missing():
-    """Test _resolve_external_domain when field is missing."""
+    """Test _resolve_external_domain when field is missing falls back to base URL."""
     from claw2immich.mcp_app import _resolve_external_domain
     
     mock_response = {"someOtherField": "value"}
     
-    with patch("claw2immich.mcp_app._request", return_value=mock_response):
-        domain = _resolve_external_domain()
-        assert domain is None
+    # When API response doesn't have externalDomain, should fall back to IMMICH_BASE_URL
+    # Patch both _request and _get_config to control both fallbacks
+    with patch("claw2immich.http_client._request", return_value=mock_response):
+        with patch("claw2immich.config._get_config", return_value={"base_url": ""}):
+            domain = _resolve_external_domain()
+            assert domain is None
 
 
 def test_resolve_external_domain_request_error():
-    """Test _resolve_external_domain when _request raises exception."""
+    """Test _resolve_external_domain when _request raises exception falls back to base URL."""
     from claw2immich.mcp_app import _resolve_external_domain
     from claw2immich.http_client import ImmichAPIError
     
-    with patch("claw2immich.mcp_app._request", side_effect=ImmichAPIError("401", "Unauthorized")):
-        domain = _resolve_external_domain()
-        assert domain is None
-
+    # When _request fails, should fall back to IMMICH_BASE_URL
+    # Patch both _request and _get_config to control both fallbacks
+    with patch("claw2immich.http_client._request", side_effect=ImmichAPIError("401", "Unauthorized")):
+        with patch("claw2immich.config._get_config", return_value={"base_url": ""}):
+            domain = _resolve_external_domain()
+            assert domain is None
 
 def test_resolve_external_domain_non_dict_response():
-    """Test _resolve_external_domain when response is not a dict."""
+    """Test _resolve_external_domain when response is not a dict falls back to base URL."""
     from claw2immich.mcp_app import _resolve_external_domain
     
-    with patch("claw2immich.mcp_app._request", return_value="not a dict"):
-        domain = _resolve_external_domain()
-        assert domain is None
+    # When _request returns non-dict, should fall back to IMMICH_BASE_URL
+    # Patch both _request and _get_config to control both fallbacks
+    with patch("claw2immich.http_client._request", return_value="not a dict"):
+        with patch("claw2immich.config._get_config", return_value={"base_url": ""}):
+            domain = _resolve_external_domain()
+            assert domain is None
 
 
 def test_create_mcp():

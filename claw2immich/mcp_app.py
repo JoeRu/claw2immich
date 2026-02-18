@@ -2,7 +2,7 @@ import logging
 
 from mcp.server.fastmcp import FastMCP
 
-from .config import get_mcp_settings, get_transport_settings
+from .config import get_mcp_settings, get_transport_settings, get_external_domain
 from .constants import build_server_instructions
 from .http_client import _request
 from .prompts import register_prompts_and_resources
@@ -12,15 +12,8 @@ logger = logging.getLogger(__name__)
 
 
 def _resolve_external_domain() -> str | None:
-    try:
-        payload = _request("GET", "/api/server-config")
-        if isinstance(payload, dict):
-            domain = payload.get("externalDomain") or payload.get("external_domain")
-            if isinstance(domain, str) and domain.strip():
-                return domain.strip()
-    except Exception:
-        pass
-    return None
+    """Get external domain from config (which handles all fallback logic)."""
+    return get_external_domain()
 
 
 def create_mcp() -> FastMCP:

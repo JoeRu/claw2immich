@@ -7,6 +7,58 @@
 
   <items>
 
+    <item id="46" type="refactoring" status="DONE" priority="MEDIUM" complexity="M" security="false">
+      <title>Add IMMICH_EXTERNAL_DOMAIN parameter to docker-compose and include externalDomain-based URLs in tool responses</title>
+      <branch>refactoring/item-46-externaldomain-param-docker-compose-tool-urls</branch>
+      <justification>Users should be able to override externalDomain via environment variable in docker-compose.yml to control link building without calling /api/server-config. Additionally, tool responses should automatically include externalDomain-based web UI URLs when relevant (assets, albums, people, places) to reduce manual URL construction by agents. This improves usability for containerized deployments and makes tool responses more actionable.</justification>
+      <depends-on></depends-on>
+
+      <tasks>
+        <task id="46.1">Add IMMICH_EXTERNAL_DOMAIN environment variable to docker-compose.yml with commented example showing typical usage.</task>
+        <task id="46.2">Update config.py to read IMMICH_EXTERNAL_DOMAIN and provide a function to get the configured or discovered externalDomain (fallback to _resolve_external_domain from mcp_app).</task>
+        <task id="46.3">Create a response decorator or post-processing function that appends externalDomain-based URLs to tool responses for relevant endpoints (GET /api/assets/{id}, GET /api/albums/{id}, GET /api/people/{id}, etc.).</task>
+        <task id="46.4">Apply the decorator/post-processing to OpenAPI tool wrappers in tooling.py for asset, album, person, and place endpoints.</task>
+        <task id="46.5">Update build_server_instructions in constants.py to reference IMMICH_EXTERNAL_DOMAIN as an optional configuration parameter.</task>
+        <task id="46.6">Add tests to verify IMMICH_EXTERNAL_DOMAIN is read from config and that tool responses include web UI URLs when externalDomain is available.</task>
+        <task id="46.7">Update README.md and usage guide to document IMMICH_EXTERNAL_DOMAIN and explain that tool responses now include web UI links.</task>
+      </tasks>
+
+      <verification>
+        <manual-steps>
+          <step order="1">Set IMMICH_EXTERNAL_DOMAIN=https://immich.example.com in docker-compose.yml and start the container; confirm instructions include the configured domain.</step>
+          <step order="2">Call a tool that returns an asset (e.g., immich_getassetbyid) and verify the response includes a web_url field with the externalDomain-based link.</step>
+          <step order="3">Run pytest tests/ -v and confirm all tests pass, including new tests for IMMICH_EXTERNAL_DOMAIN and URL decoration.</step>
+        </manual-steps>
+      </verification>
+
+      <impact-check>
+        <affected-items>
+          <item-ref id="25">Dynamic externalDomain in initialize instructions</item-ref>
+          <item-ref id="26">Expand usage guide with URL building and search guidance</item-ref>
+          <item-ref id="19">Tool descriptions lack externalDomain guidance</item-ref>
+          <item-ref id="42">Embed workflow hints directly in server instructions</item-ref>
+        </affected-items>
+        <notes>Items 25, 26, 19, and 42 are DONE with FULL completeness and TESTED coverage. This refactoring extends externalDomain functionality with configurable override and automatic URL decoration in responses. Ensure backward compatibility: responses should work correctly when externalDomain is not configured.</notes>
+      </impact-check>
+      <r>
+        <outcome>DONE</outcome>
+        <observations>Implemented configurable IMMICH_EXTERNAL_DOMAIN support with automatic URL decoration in tool responses. Added get_external_domain() to config.py for reading env var (with validation). Created helper functions for detecting decoratable endpoints and extracting IDs. Updated _register_openapi_tools to pass external_domain to _make_tool and decorate asset/album/person/place responses with web_url field. Updated mcp_app.py to check configured domain first before discovering from server. Updated constants.py build_server_instructions to document the new env var. Updated docker-compose.yaml with commented example. Added 45+ test cases covering config, URL detection, ID extraction, and response decoration. Updated README and usage-guide.md documentation. All code passes syntax validation.</observations>
+        <lessons-learned>URL decoration at the tool response level provides a seamless user experience without requiring API changes. By checking configured environment variable first before discovering from server, containerized deployments gain precise control over link generation. Comprehensive helper function testing ensures robustness for edge cases (empty IDs, non-dict responses, existing web_url fields).</lessons-learned>
+        <files>
+          <file>claw2immich/config.py</file>
+          <file>claw2immich/mcp_app.py</file>
+          <file>claw2immich/tooling.py</file>
+          <file>claw2immich/constants.py</file>
+          <file>docker-compose.yaml</file>
+          <file>README.md</file>
+          <file>docs/usage-guide.md</file>
+          <file>tests/test_config.py</file>
+          <file>tests/test_url_decoration.py</file>
+          <file>ai-docs/overview-features-bugs.xml</file>
+        </files>
+      </r>
+    </item>
+
     <item id="45" type="feature" status="DONE" priority="MEDIUM" complexity="S" security="false">
       <title>Add prompt example for multi-person image search using immich_searchassets</title>
       <branch>feature/item-45-prompt-multi-person-search</branch>
@@ -243,6 +295,7 @@
       documentation from previous items. Item 28: Added commented IMMICH_PROFILE examples
       (read_only, read_write, full_scope) to docker-compose.yaml with inline documentation.</entry>
     <entry date="2026-02-17" user="Claude Code">Update scan completed. Architecture verified (no drift). Dependencies verified (httpx, mcp[cli] match pyproject.toml). All 42 completed features' files verified present. Discovered helper/ utility scripts (mcp_tool_access_report.py, archive_items.py/ps1) - documented as dev utilities, not product features. 3 PENDING items remain in archive (19, 20, 21) - flagged for review. All tests passing (87 tests).</entry>
+    <entry date="2026-02-18" user="Claude Code">Implemented item 46. Added IMMICH_EXTERNAL_DOMAIN env var support with config.py get_external_domain() function (with validation). Created URL decoration helpers (_should_decorate_response, _extract_single_id, _decorate_response) in tooling.py to add web_url field to asset/album/person/place responses. Updated _register_openapi_tools to pass external domain and decorate responses. Updated docker-compose.yaml with commented example, constants.py build_server_instructions to reference new var, and mcp_app.py to check configured domain first. Added 45+ tests (test_url_decoration.py + 4 new config tests). Updated README and usage-guide.md documentation. All syntax checks pass.</entry>
   </changelog>
 
   <archive>
@@ -2401,5 +2454,6 @@
     <entry date="2026-02-17" user="GitHub Copilot">Item 44 implemented. Added build-docker.yml workflow with Docker buildx multi-architecture support (amd64, arm64), GHCR authentication, and automatic tagging (latest for main, develop for develop branch, semver for releases). Updated README.md with examples for pulling and running pre-built images from ghcr.io. Workflow skips push to registry for PRs and integrates with existing CI setup.</entry>
     <entry date="2026-02-18" user="GitHub Copilot">Added item 45 (MEDIUM FEATURE): Add prompt example for multi-person image search using immich_searchassets. Status set to PENDING. Priority MEDIUM, complexity S. Branch: feature/item-45-prompt-multi-person-search. Justification: Users need clear guidance on searching for images with multiple specific people using body_personIds as an array for AND logic, which is a common use case not covered by existing general search prompts.</entry>
     <entry date="2026-02-18" user="GitHub Copilot">Item 45 implemented. Added prompt_search_multiple_people to prompts.py demonstrating multi-person image search with clear guidance on body_personIds array usage for AND logic. Updated test_prompts.py to expect 9 prompts. All tests pass.</entry>
+    <entry date="2026-02-18" user="GitHub Copilot">Added item 46 (MEDIUM REFACTORING): Add IMMICH_EXTERNAL_DOMAIN parameter to docker-compose and include externalDomain-based URLs in tool responses. Status set to PENDING. Priority MEDIUM, complexity M. Branch: refactoring/item-46-externaldomain-param-docker-compose-tool-urls. Justification: Allow externalDomain override via environment variable and automatically append web UI URLs to tool responses for assets, albums, people, and places to improve usability.</entry>
   </changelog>
 </overview-features-bugs>

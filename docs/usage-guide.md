@@ -8,7 +8,19 @@ agent: 'agent'
 This guide explains how to use the MCP server to discover tools and perform common Immich workflows. It is designed for MCP clients and AI agents.
 
 ## Build Web URLs (Assets, Albums, People, Places)
-Before constructing links, call the tool whose description starts with `GET /api/server-config` and read `externalDomain`.
+The tool responses for asset, album, person, and place endpoints automatically include a `web_url` field with a direct link to the item in the Immich web UI. This field is populated when `IMMICH_EXTERNAL_DOMAIN` is configured (or discovered from `/api/server-config`).
+
+For tools that fetch individual items (e.g., GET /api/assets/{id}), the response will include:
+```json
+{
+  "id": "asset-id",
+  "name": "Photo.jpg",
+  "web_url": "https://immich.example.com/photos/asset-id",
+  ...
+}
+```
+
+If you need to construct URLs manually or for tools that don't include web_url, call the tool whose description starts with `GET /api/server-config` and read `externalDomain`.
 
 Use `externalDomain` as the base URL (no trailing slash). Build web UI links like:
 - Asset (image): `<externalDomain>/photos/<asset-id>`

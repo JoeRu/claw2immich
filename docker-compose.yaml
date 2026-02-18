@@ -1,4 +1,4 @@
-services:
+services: 
   mcp:
     build: .
     image: claw2immich:local
@@ -6,6 +6,10 @@ services:
       IMMICH_BASE_URL: ${IMMICH_BASE_URL:-http://host.docker.internal:2283}
       IMMICH_API_KEY: ${IMMICH_API_KEY:-}
       IMMICH_API_TOKEN: ${IMMICH_API_TOKEN:-}
+      # IMMICH_EXTERNAL_DOMAIN configures the web UI domain for link building in tool responses (optional)
+      # Example: https://immich.example.com (used to generate links like /photos/<id>, /albums/<id>, etc)
+      # Uncomment to override (default: discovered from /api/server-config externalDomain)
+      # IMMICH_EXTERNAL_DOMAIN: ${IMMICH_EXTERNAL_DOMAIN:-https://immich.example.com}
       # IMMICH_PROFILE restricts tool exposure based on permission level (optional)
       # Options: read_only (search/browse only), read_write (assets/albums), full_scope (all including admin)
       # Uncomment to limit access level (default: no profile restriction, depends on API key permissions)

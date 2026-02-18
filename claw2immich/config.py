@@ -39,6 +39,51 @@ def _get_config() -> dict[str, str]:
     return {"base_url": base_url, "api_key": api_key, "api_token": api_token}
 
 
+def get_external_domain() -> str | None:
+    """
+    Get the external domain for web UI link building.
+    
+    Fallback chain:
+    1. IMMICH_EXTERNAL_DOMAIN env var (if set)
+    2. Discovered from GET /api/server-config externalDomain (if reachable)
+    3. IMMICH_BASE_URL (if available)
+    4. None (if all fallbacks fail)
+    
+    Returns:
+        The external domain URL (e.g., https://immich.example.com) or None.
+    """
+    # Try environment variable first
+    domain = os.getenv("IMMICH_EXTERNAL_DOMAIN", "").strip()
+    if domain:
+        domain = domain.rstrip("/")
+        if not domain.startswith("http://") and not domain.startswith("https://"):
+            raise ValueError("IMMICH_EXTERNAL_DOMAIN must start with http:// or https://")
+        return domain
+    
+    # Try discovering from server config API
+    try:
+        from .http_client import _request
+        payload = _request("GET", "/api/server-config")
+        if isinstance(payload, dict):
+            server_domain = payload.get("externalDomain") or payload.get("external_domain")
+            if isinstance(server_domain, str) and server_domain.strip():
+                server_domain = server_domain.strip().rstrip("/")
+                return server_domain
+    except Exception:
+        pass
+    
+    # Fallback to IMMICH_BASE_URL
+    try:
+        config = _get_config()
+        base_url = config.get("base_url", "").rstrip("/")
+        if base_url:
+            return base_url
+    except Exception:
+        pass
+    
+    return None
+
+
 def get_usage_guide_path() -> str:
     base_dir = Path(__file__).resolve().parents[1]
     return str(base_dir / "docs" / "usage-guide.md")

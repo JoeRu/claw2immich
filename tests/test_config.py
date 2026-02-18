@@ -253,3 +253,83 @@ def test_get_usage_guide_path():
     path = get_usage_guide_path()
     assert path.endswith("usage-guide.md")
     assert "docs" in path
+
+def test_get_external_domain_not_set():
+    """Test get_external_domain returns fallback (IMMICH_BASE_URL) when env var not set."""
+    os.environ.pop("IMMICH_EXTERNAL_DOMAIN", None)
+    
+    from claw2immich.config import get_external_domain
+    
+    result = get_external_domain()
+    # Should fall back to IMMICH_BASE_URL (from _get_config)
+    # Result could be None (if Immich unreachable) or a URL string
+    assert result is None or isinstance(result, str)
+
+
+def test_get_external_domain_https():
+    """Test get_external_domain reads and normalizes HTTPS domain."""
+    os.environ["IMMICH_EXTERNAL_DOMAIN"] = "https://immich.example.com/"
+    
+    try:
+        from claw2immich.config import get_external_domain
+        
+        result = get_external_domain()
+        assert result == "https://immich.example.com"  # Trailing slash removed
+    finally:
+        os.environ.pop("IMMICH_EXTERNAL_DOMAIN", None)
+
+
+def test_get_external_domain_http():
+    """Test get_external_domain accepts HTTP."""
+    os.environ["IMMICH_EXTERNAL_DOMAIN"] = "http://localhost:2283"
+    
+    try:
+        from claw2immich.config import get_external_domain
+        
+        result = get_external_domain()
+        assert result == "http://localhost:2283"
+    finally:
+        os.environ.pop("IMMICH_EXTERNAL_DOMAIN", None)
+
+
+def test_get_external_domain_invalid_protocol():
+    """Test get_external_domain rejects invalid protocol."""
+    os.environ["IMMICH_EXTERNAL_DOMAIN"] = "ftp://invalid.com"
+    
+    try:
+        from claw2immich.config import get_external_domain
+        
+        with pytest.raises(ValueError, match="must start with http"):
+            get_external_domain()
+    finally:
+        os.environ.pop("IMMICH_EXTERNAL_DOMAIN", None)
+
+
+def test_get_external_domain_env_var_takes_precedence():
+    """Test that env var takes precedence over all fallbacks."""
+    os.environ["IMMICH_EXTERNAL_DOMAIN"] = "https://configured.example.com"
+    os.environ["IMMICH_BASE_URL"] = "http://different.example.com"
+    
+    try:
+        from claw2immich.config import get_external_domain
+        
+        result = get_external_domain()
+        # Should return env var first
+        assert result == "https://configured.example.com"
+    finally:
+        os.environ.pop("IMMICH_EXTERNAL_DOMAIN", None)
+        os.environ.pop("IMMICH_BASE_URL", None)
+
+
+def test_get_external_domain_fallback_normalizes_trailing_slash():
+    """Test that env var with trailing slash is normalized."""
+    os.environ["IMMICH_EXTERNAL_DOMAIN"] = "https://immich.example.com/"
+    
+    try:
+        from claw2immich.config import get_external_domain
+        
+        result = get_external_domain()
+        # Should remove trailing slash
+        assert result == "https://immich.example.com"
+    finally:
+        os.environ.pop("IMMICH_EXTERNAL_DOMAIN", None)

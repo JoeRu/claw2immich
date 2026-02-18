@@ -12,6 +12,7 @@ from .capabilities import (
 from .config import (
     _get_config,
     get_profile,
+    get_external_domain,
     profile_allows_admin,
     profile_allows_write,
 )
@@ -36,6 +37,96 @@ from .openapi import (
     _tool_name_for_operation,
     _truncate_description,
 )
+
+
+def _should_decorate_response(method: str, path: str) -> tuple[bool, str | None]:
+    """
+    Determine if a tool response should be decorated with web URLs.
+    
+    Args:
+        method: HTTP method
+        path: OpenAPI path template
+    
+    Returns:
+        Tuple of (should_decorate, url_type) where url_type is 'asset', 'album', 'person', or None
+    """
+    if method != "GET":
+        return False, None
+    
+    # Match patterns like /api/assets/{id}
+    if path.startswith("/assets/") and "{" in path:
+        return True, "asset"
+    if path.startswith("/albums/") and "{" in path:
+        return True, "album"
+    if path.startswith("/people/") and "{" in path:
+        return True, "person"
+    if path.startswith("/places/") and "{" in path:
+        return True, "place"
+    
+    return False, None
+
+
+def _extract_single_id(data: Any) -> str | None:
+    """
+    Extract a single ID field from response data for URL building.
+    
+    Args:
+        data: Response data (dict or other)
+    
+    Returns:
+        The ID string if found, None otherwise
+    """
+    if not isinstance(data, dict):
+        return None
+    
+    # Try common ID field names
+    for id_field in ("id", "albumId", "personId", "placeId"):
+        if id_field in data and data[id_field]:
+            return str(data[id_field])
+    
+    return None
+
+
+def _decorate_response(
+    response: Any, external_domain: str | None, url_type: str
+) -> Any:
+    """
+    Add web_url field(s) to a response for direct browsing.
+    
+    Args:
+        response: Response data
+        external_domain: Base domain for URLs (e.g., https://immich.example.com)
+        url_type: Type of URL to build ('asset', 'album', 'person', 'place')
+    
+    Returns:
+        Modified response with web_url field added
+    """
+    if not external_domain or not isinstance(response, dict):
+        return response
+    
+    # Extract ID from response
+    entity_id = _extract_single_id(response)
+    if not entity_id:
+        return response
+    
+    # Build the appropriate web URL
+    if url_type == "asset":
+        web_url = f"{external_domain}/photos/{entity_id}"
+    elif url_type == "album":
+        web_url = f"{external_domain}/albums/{entity_id}"
+    elif url_type == "person":
+        web_url = f"{external_domain}/people/{entity_id}"
+    elif url_type == "place":
+        # Places might use a different pattern
+        web_url = f"{external_domain}/explore?places={entity_id}"
+    else:
+        return response
+    
+    # Add web_url to response (don't overwrite if already present)
+    if "web_url" not in response:
+        response["web_url"] = web_url
+    
+    return response
 
 
 def _deduplicate_name(base_name: str, seen: set[str]) -> str:
@@ -257,6 +348,7 @@ def _register_openapi_tools(mcp) -> None:
     operations = access["operations"]
     allowed = set(access["allowed_tools"])
     used_names: set[str] = set()
+    external_domain = get_external_domain()
 
     for entry in operations:
         method = entry["method"]
@@ -328,7 +420,11 @@ def _register_openapi_tools(mcp) -> None:
             require_auth: bool,
             specs: list[dict[str, Any]],
             request_body: dict[str, Any] | None,
+            ext_domain: str | None = None,
         ):
+            # Determine if this response should be decorated with web URLs
+            should_decorate, url_type = _should_decorate_response(method, path_template)
+            
             def tool(**kwargs: Any) -> Any:
                 path_params = dict(kwargs.get("path_params") or {})
                 query_params = dict(kwargs.get("query_params") or {})
@@ -404,7 +500,7 @@ def _register_openapi_tools(mcp) -> None:
                 final_path = _apply_path_params(path_template, path_params)
                 full_path = f"{base_path}{final_path}"
                 try:
-                    return _request(
+                    response = _request(
                         method,
                         full_path,
                         params=query_params,
@@ -412,6 +508,10 @@ def _register_openapi_tools(mcp) -> None:
                         require_auth=require_auth,
                         extra_headers=headers,
                     )
+                    # Decorate response with web URLs if applicable
+                    if should_decorate and ext_domain:
+                        response = _decorate_response(response, ext_domain, url_type)
+                    return response
                 except Exception as exc:
                     return {"error": str(exc)}
 
@@ -468,5 +568,5 @@ def _register_openapi_tools(mcp) -> None:
             tool.__annotations__ = annotations
             return tool
 
-        tool_func = _make_tool(method, path, requires_auth, param_specs, body_spec)
+        tool_func = _make_tool(method, path, requires_auth, param_specs, body_spec, external_domain)
         mcp.tool(name=tool_name, description=description)(tool_func)
