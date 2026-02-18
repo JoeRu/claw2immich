@@ -2,10 +2,51 @@
 <overview-features-bugs>
   <metadata>
     <created>2026-02-15</created>
-    <updated>2026-02-17</updated>
+    <updated>2026-02-18</updated>
   </metadata>
 
   <items>
+
+    <item id="45" type="feature" status="DONE" priority="MEDIUM" complexity="S" security="false">
+      <title>Add prompt example for multi-person image search using immich_searchassets</title>
+      <branch>feature/item-45-prompt-multi-person-search</branch>
+      <justification>Users need clear guidance on how to search for images with multiple specific people using immich_searchassets. The key insight is that body_personIds must be passed as an array for AND logic (all persons must appear in the image). This use case is common but not obvious from the general search prompts, and requires explicit documentation to prevent agents from making sequential OR-based searches instead.</justification>
+      <depends-on></depends-on>
+
+      <tasks>
+        <task id="45.1">Add a new prompt function to claw2immich/prompts.py demonstrating multi-person search (e.g., prompt_search_multiple_people).</task>
+        <task id="45.2">Include clear documentation in the prompt text explaining that body_personIds should be an array for AND logic.</task>
+        <task id="45.3">Add usage examples showing how to find the newest image with person A AND person B, including proper parameters (body_personIds array, query_order desc, optional query_size).</task>
+        <task id="45.4">Document the difference between AND logic (array of person IDs) and OR logic (requires separate searches and merging results).</task>
+        <task id="45.5">Add a test case to tests/test_prompts.py verifying the new prompt function is registered and returns expected guidance.</task>
+      </tasks>
+
+      <verification>
+        <manual-steps>
+          <step order="1">List all prompts and confirm the new multi-person search prompt is registered with MCP server.</step>
+          <step order="2">Invoke the prompt with sample person names and verify it returns clear guidance about body_personIds array usage.</step>
+          <step order="3">Test the prompt with an MCP client to ensure agents can correctly construct searchAssets calls with multiple person IDs.</step>
+        </manual-steps>
+      </verification>
+
+      <impact-check>
+        <affected-items>
+          <item-ref id="24">Add searchAssets/searchSmart guidance to prompts</item-ref>
+          <item-ref id="41">Add prompt descriptions</item-ref>
+        </affected-items>
+        <notes>CF-24 and CF-41 are FULL and TESTED. This new prompt extends existing search guidance with a specific multi-person use case. Ensure consistency with existing prompt style and parameter naming conventions.</notes>
+      </impact-check>
+      <r>
+        <outcome>DONE</outcome>
+        <observations>Added prompt_search_multiple_people to prompts.py with clear guidance on using body_personIds as an array for AND logic when searching for images with multiple people. The prompt text explicitly explains the difference between AND logic (array of person IDs in one call) and OR logic (separate searches). Updated test_prompts.py to expect 9 prompts instead of 8. All tests pass successfully.</observations>
+        <lessons-learned>MCP prompts should provide explicit guidance on parameter structure (arrays vs single values) and search semantics (AND vs OR logic) to help agents make correct API calls. The multi-person search use case is common but non-obvious without documentation.</lessons-learned>
+        <files>
+          <file>claw2immich/prompts.py</file>
+          <file>tests/test_prompts.py</file>
+          <file>ai-docs/overview-features-bugs.xml</file>
+        </files>
+      </r>
+    </item>
 
         <item id="20" type="bug" status="PENDING" priority="HIGH" complexity="M" security="false">
       <title>query_type unknown for some parameters (e.g. getsearchsuggestions, getpartners)</title>
@@ -2358,5 +2399,7 @@
       integration tests).</entry>
     <entry date="2026-02-17" user="GitHub Copilot">Added item 43 (HIGH BUG): Tests fail during collection in CI due to missing environment configuration. Status set to PENDING. Branch: bug/item-43-ci-test-collection-failure-env. Investigation needed to identify why pytest collection fails in CI when all module imports should be environment-variable independent.</entry>
     <entry date="2026-02-17" user="GitHub Copilot">Item 44 implemented. Added build-docker.yml workflow with Docker buildx multi-architecture support (amd64, arm64), GHCR authentication, and automatic tagging (latest for main, develop for develop branch, semver for releases). Updated README.md with examples for pulling and running pre-built images from ghcr.io. Workflow skips push to registry for PRs and integrates with existing CI setup.</entry>
+    <entry date="2026-02-18" user="GitHub Copilot">Added item 45 (MEDIUM FEATURE): Add prompt example for multi-person image search using immich_searchassets. Status set to PENDING. Priority MEDIUM, complexity S. Branch: feature/item-45-prompt-multi-person-search. Justification: Users need clear guidance on searching for images with multiple specific people using body_personIds as an array for AND logic, which is a common use case not covered by existing general search prompts.</entry>
+    <entry date="2026-02-18" user="GitHub Copilot">Item 45 implemented. Added prompt_search_multiple_people to prompts.py demonstrating multi-person image search with clear guidance on body_personIds array usage for AND logic. Updated test_prompts.py to expect 9 prompts. All tests pass.</entry>
   </changelog>
 </overview-features-bugs>

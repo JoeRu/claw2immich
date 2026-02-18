@@ -87,3 +87,15 @@ def register_prompts_and_resources(mcp) -> None:
             "Use inputSchema prefixes (query_/body) and provide the search query in body when required. "
             f"Smart search query: {query}."
         )
+
+    @mcp.prompt(title="Immich: Find images with multiple people", description="Search for images where two or more specific people appear together.")
+    def prompt_search_multiple_people(person_ids: str) -> str:
+        return (
+            "Find images with multiple specific people using immich_searchassets. "
+            "IMPORTANT: To find images with multiple people together (AND logic), "
+            "pass body_personIds as an ARRAY: [\"person-id-1\", \"person-id-2\", ...]. "
+            "This searches for images where ALL specified persons appear. "
+            "For newest images first, set query_order to \"desc\". "
+            "For OR logic (any person), you must make separate searches and merge results. "
+            f"Person IDs (comma-separated): {person_ids}."
+        )
