@@ -7,6 +7,47 @@
 
   <items>
 
+    <item id="47" type="refactoring" status="DONE" priority="MEDIUM" complexity="M" security="false">
+      <title>Extend URL decoration in _decorate_response to handle response arrays with IMAGE/VIDEO type fields</title>
+      <branch>refactoring/item-47-url-decoration-arrays-types</branch>
+      <justification>Currently, _decorate_response() only decorates single entity responses with ID fields. However, API responses often include arrays of items with "type": "IMAGE" or "type": "VIDEO" fields (e.g., in search results, asset collections, or partial responses). By extending the decorator to detect and handle these type fields in array responses, agents can automatically get web UI links for all returned items without manual URL construction. This improves the completeness of response information and enhances usability for bulk operations.</justification>
+      <depends-on>46</depends-on>
+
+      <tasks>
+        <task id="47.1">Extend _should_decorate_response() to also return True for endpoints that commonly return arrays of typed items (search, browse results, etc.).</task>
+        <task id="47.2">Update _extract_single_id() to handle array responses: iterate items, extract ID from each, and return list of IDs or single ID depending on context.</task>
+        <task id="47.3">Create _detect_response_type(data) helper to determine if response contains "type": "IMAGE"/"VIDEO" fields and extract the appropriate URL type.</task>
+        <task id="47.4">Enhance _decorate_response() to handle both single objects and arrays: apply decoration to each item in array, preserve array structure, and skip items without valid IDs.</task>
+        <task id="47.5">Add tests to verify URL decoration works for array responses, mixed array content (IMAGE/VIDEO/other types), and nested response structures.</task>
+        <task id="47.6">Ensure backward compatibility: single-object responses continue to work as before, and arrays with non-decoratable items are passed through unchanged.</task>
+      </tasks>
+
+      <verification>
+        <manual-steps>
+          <step order="1">Call a search endpoint (e.g., immich_searchassets) and verify response includes web_url fields for each item in the results array.</step>
+          <step order="2">Check that items with "type": "IMAGE" have web_url with /photos/{id} pattern and "type": "VIDEO" have appropriate URL pattern.</step>
+          <step order="3">Verify single-item responses (e.g., GET /api/assets/{id}) continue to work with web_url as before.</step>
+          <step order="4">Run pytest tests/ -v and confirm all existing tests pass with no regressions, plus new array decoration tests.</step>
+        </manual-steps>
+      </verification>
+
+      <impact-check>
+        <affected-items>
+          <item-ref id="46">Add IMMICH_EXTERNAL_DOMAIN parameter to docker-compose and include externalDomain-based URLs in tool responses</item-ref>
+        </affected-items>
+        <notes>Item 46 is DONE and provides the foundation for URL decoration. This refactoring extends that capability to handle more complex response structures (arrays with type fields). Ensure backward compatibility and that all existing web_url decoration patterns remain consistent.</notes>
+      </impact-check>
+      <r>
+        <outcome>DONE</outcome>
+        <observations>Extended _should_decorate_response() to detect array endpoints (/search/*, /assets, /albums, /people, /places) and return url_type='array' for auto-detection. Added new _detect_response_type() helper function to identify URL type based on "type": "IMAGE"/"VIDEO"/"MEMORY"/"ALBUM"/"PERSON"/"PLACE" fields or ID field names. Created _decorate_single_item() helper to process individual items with proper type detection and ID extraction. Enhanced _decorate_response() to handle both single objects and arrays of items, applying decoration to each array element while preserving structure. Added 23 new comprehensive tests covering array responses with IMAGE/VIDEO types, mixed-type arrays, empty arrays, items without IDs, non-dict items, and full backward compatibility verification. All 138 tests pass with no regressions.</observations>
+        <lessons-learned>Array decoration requires flexible type detection since the URL type may come from the response content (via "type" field) rather than the endpoint path. Auto-detection via _detect_response_type() provides a generic solution that works across different array endpoints. By creating a separate _decorate_single_item() helper, the code remains clean and testable, with proper separation of concerns between single-item and array handling. Backward compatibility is maintained by checking for 'array' url_type to enable auto-detection while preserving existing explicit type behavior.</lessons-learned>
+        <files>
+          <file>claw2immich/tooling.py</file>
+          <file>tests/test_url_decoration.py</file>
+        </files>
+      </r>
+    </item>
+
     <item id="46" type="refactoring" status="DONE" priority="MEDIUM" complexity="M" security="false">
       <title>Add IMMICH_EXTERNAL_DOMAIN parameter to docker-compose and include externalDomain-based URLs in tool responses</title>
       <branch>refactoring/item-46-externaldomain-param-docker-compose-tool-urls</branch>
@@ -2455,5 +2496,7 @@
     <entry date="2026-02-18" user="GitHub Copilot">Added item 45 (MEDIUM FEATURE): Add prompt example for multi-person image search using immich_searchassets. Status set to PENDING. Priority MEDIUM, complexity S. Branch: feature/item-45-prompt-multi-person-search. Justification: Users need clear guidance on searching for images with multiple specific people using body_personIds as an array for AND logic, which is a common use case not covered by existing general search prompts.</entry>
     <entry date="2026-02-18" user="GitHub Copilot">Item 45 implemented. Added prompt_search_multiple_people to prompts.py demonstrating multi-person image search with clear guidance on body_personIds array usage for AND logic. Updated test_prompts.py to expect 9 prompts. All tests pass.</entry>
     <entry date="2026-02-18" user="GitHub Copilot">Added item 46 (MEDIUM REFACTORING): Add IMMICH_EXTERNAL_DOMAIN parameter to docker-compose and include externalDomain-based URLs in tool responses. Status set to PENDING. Priority MEDIUM, complexity M. Branch: refactoring/item-46-externaldomain-param-docker-compose-tool-urls. Justification: Allow externalDomain override via environment variable and automatically append web UI URLs to tool responses for assets, albums, people, and places to improve usability.</entry>
+    <entry date="2026-02-18" user="Claude Code">Added item 47 (MEDIUM REFACTORING): Extend URL decoration in _decorate_response to handle response arrays with IMAGE/VIDEO type fields. Status set to PENDING. Priority MEDIUM, complexity M. Branch: refactoring/item-47-url-decoration-arrays-types. Justification: Extend existing URL decoration from item 46 to handle arrays of items with "type": "IMAGE"/"VIDEO" fields commonly found in search results and batch responses. Improves usability for bulk operations by automatically providing web UI links for all returned items.</entry>
+    <entry date="2026-02-18" user="Claude Code">Item 47 implemented. Extended _should_decorate_response() to detect array endpoints (/search/*, /assets, /albums, /people, /places) with url_type='array'. Added _detect_response_type() helper to identify URL type from "type": "IMAGE"/"VIDEO"/"MEMORY"/"ALBUM"/"PERSON"/"PLACE" fields or ID field inference. Created _decorate_single_item() helper for unified item processing. Enhanced _decorate_response() to handle both single objects and arrays. Added 23 comprehensive array tests for IMAGE/VIDEO types, mixed arrays, empty arrays, items without IDs, non-dict items, and backward compatibility. All 138 tests pass with no regressions.</entry>
   </changelog>
 </overview-features-bugs>

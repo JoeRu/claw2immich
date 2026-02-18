@@ -48,12 +48,13 @@ def _should_decorate_response(method: str, path: str) -> tuple[bool, str | None]
         path: OpenAPI path template
     
     Returns:
-        Tuple of (should_decorate, url_type) where url_type is 'asset', 'album', 'person', or None
+        Tuple of (should_decorate, url_type) where url_type is 'asset', 'album', 'person', 'place', or None.
+        For array endpoints (search, browse), returns 'array' to indicate special handling needed.
     """
     if method != "GET":
         return False, None
     
-    # Match patterns like /api/assets/{id}
+    # Single-entity endpoints with direct ID in path
     if path.startswith("/assets/") and "{" in path:
         return True, "asset"
     if path.startswith("/albums/") and "{" in path:
@@ -62,6 +63,12 @@ def _should_decorate_response(method: str, path: str) -> tuple[bool, str | None]
         return True, "person"
     if path.startswith("/places/") and "{" in path:
         return True, "place"
+    
+    # Array endpoints that may contain type fields (IMAGE, VIDEO, etc.)
+    if path.startswith("/search/") or path.startswith("/assets"):
+        return True, "array"
+    if path.startswith("/albums") or path.startswith("/people") or path.startswith("/places"):
+        return True, "array"
     
     return False, None
 
@@ -87,46 +94,123 @@ def _extract_single_id(data: Any) -> str | None:
     return None
 
 
+def _detect_response_type(item: Any) -> str | None:
+    """
+    Detect the URL type based on response item content and type field.
+    
+    Args:
+        item: Response item (typically dict with 'type' and/or 'id' fields)
+    
+    Returns:
+        URL type ('asset', 'album', 'person', 'place') or None if unable to determine
+    """
+    if not isinstance(item, dict):
+        return None
+    
+    # Check for explicit type field (IMAGE, VIDEO for assets)
+    item_type = item.get("type")
+    if item_type:
+        if item_type in ("IMAGE", "VIDEO", "MEMORY"):
+            return "asset"
+        elif item_type == "ALBUM":
+            return "album"
+        elif item_type == "PERSON":
+            return "person"
+        elif item_type == "PLACE":
+            return "place"
+    
+    # Try to infer from ID field names
+    if "id" in item and not any(k in item for k in ("albumId", "personId", "placeId")):
+        return "asset"
+    if "albumId" in item:
+        return "album"
+    if "personId" in item:
+        return "person"
+    if "placeId" in item:
+        return "place"
+    
+    return None
+
+
 def _decorate_response(
     response: Any, external_domain: str | None, url_type: str
 ) -> Any:
     """
     Add web_url field(s) to a response for direct browsing.
     
+    Handles both single entity responses and array responses:
+    - Single entity: adds web_url field directly
+    - Array: processes each item and adds web_url to decoratable items
+    - Array with 'type' field: auto-detects URL type from 'type': 'IMAGE', 'VIDEO', etc.
+    
     Args:
-        response: Response data
+        response: Response data (dict or list)
         external_domain: Base domain for URLs (e.g., https://immich.example.com)
-        url_type: Type of URL to build ('asset', 'album', 'person', 'place')
+        url_type: Type of URL to build ('asset', 'album', 'person', 'place', or 'array' for auto-detection)
     
     Returns:
-        Modified response with web_url field added
+        Modified response with web_url field(s) added
     """
-    if not external_domain or not isinstance(response, dict):
+    if not external_domain:
         return response
     
-    # Extract ID from response
-    entity_id = _extract_single_id(response)
-    if not entity_id:
-        return response
+    # Handle array responses
+    if isinstance(response, list):
+        return [_decorate_single_item(item, external_domain, url_type) for item in response]
     
-    # Build the appropriate web URL
-    if url_type == "asset":
-        web_url = f"{external_domain}/photos/{entity_id}"
-    elif url_type == "album":
-        web_url = f"{external_domain}/albums/{entity_id}"
-    elif url_type == "person":
-        web_url = f"{external_domain}/people/{entity_id}"
-    elif url_type == "place":
-        # Places might use a different pattern
-        web_url = f"{external_domain}/explore?places={entity_id}"
-    else:
-        return response
-    
-    # Add web_url to response (don't overwrite if already present)
-    if "web_url" not in response:
-        response["web_url"] = web_url
+    # Handle single object responses
+    if isinstance(response, dict):
+        return _decorate_single_item(response, external_domain, url_type)
     
     return response
+
+
+def _decorate_single_item(item: Any, external_domain: str, url_type: str) -> Any:
+    """
+    Decorate a single item with web_url if applicable.
+    
+    Args:
+        item: Single response item (dict or other)
+        external_domain: Base domain for URLs
+        url_type: URL type, or 'array' to auto-detect from item
+    
+    Returns:
+        Modified item with web_url field added if applicable
+    """
+    if not isinstance(item, dict):
+        return item
+    
+    # For array endpoints, detect the type from the item itself
+    if url_type == "array":
+        detected_type = _detect_response_type(item)
+        if not detected_type:
+            return item
+        effective_url_type = detected_type
+    else:
+        effective_url_type = url_type
+    
+    # Extract ID from item
+    entity_id = _extract_single_id(item)
+    if not entity_id:
+        return item
+    
+    # Build the appropriate web URL
+    if effective_url_type == "asset":
+        web_url = f"{external_domain}/photos/{entity_id}"
+    elif effective_url_type == "album":
+        web_url = f"{external_domain}/albums/{entity_id}"
+    elif effective_url_type == "person":
+        web_url = f"{external_domain}/people/{entity_id}"
+    elif effective_url_type == "place":
+        web_url = f"{external_domain}/explore?places={entity_id}"
+    else:
+        return item
+    
+    # Add web_url to item (don't overwrite if already present)
+    if "web_url" not in item:
+        item["web_url"] = web_url
+    
+    return item
 
 
 def _deduplicate_name(base_name: str, seen: set[str]) -> str:

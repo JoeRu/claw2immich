@@ -214,3 +214,281 @@ def test_decorate_response_http_domain():
     assert "web_url" in decorated
     assert decorated["web_url"] == "http://localhost:2283/photos/asset-123"
 
+
+def test_should_decorate_response_search_endpoint():
+    """Test _should_decorate_response detects search endpoints."""
+    from claw2immich.tooling import _should_decorate_response
+    
+    result, url_type = _should_decorate_response("GET", "/search/array")
+    assert result is True
+    assert url_type == "array"
+
+
+def test_should_decorate_response_assets_list():
+    """Test _should_decorate_response detects bulk assets endpoint."""
+    from claw2immich.tooling import _should_decorate_response
+    
+    result, url_type = _should_decorate_response("GET", "/assets")
+    assert result is True
+    assert url_type == "array"
+
+
+def test_should_decorate_response_albums_list():
+    """Test _should_decorate_response detects bulk albums endpoint."""
+    from claw2immich.tooling import _should_decorate_response
+    
+    result, url_type = _should_decorate_response("GET", "/albums")
+    assert result is True
+    assert url_type == "array"
+
+
+def test_detect_response_type_image():
+    """Test _detect_response_type identifies IMAGE type as asset."""
+    from claw2immich.tooling import _detect_response_type
+    
+    item = {"id": "asset-123", "type": "IMAGE", "name": "Photo"}
+    url_type = _detect_response_type(item)
+    assert url_type == "asset"
+
+
+def test_detect_response_type_video():
+    """Test _detect_response_type identifies VIDEO type as asset."""
+    from claw2immich.tooling import _detect_response_type
+    
+    item = {"id": "video-456", "type": "VIDEO", "name": "Movie"}
+    url_type = _detect_response_type(item)
+    assert url_type == "asset"
+
+
+def test_detect_response_type_memory():
+    """Test _detect_response_type identifies MEMORY type as asset."""
+    from claw2immich.tooling import _detect_response_type
+    
+    item = {"id": "mem-789", "type": "MEMORY", "name": "Memory"}
+    url_type = _detect_response_type(item)
+    assert url_type == "asset"
+
+
+def test_detect_response_type_album():
+    """Test _detect_response_type identifies ALBUM type."""
+    from claw2immich.tooling import _detect_response_type
+    
+    item = {"albumId": "album-123", "type": "ALBUM", "albumName": "Collection"}
+    url_type = _detect_response_type(item)
+    assert url_type == "album"
+
+
+def test_detect_response_type_person():
+    """Test _detect_response_type identifies PERSON type."""
+    from claw2immich.tooling import _detect_response_type
+    
+    item = {"personId": "person-456", "type": "PERSON", "name": "John"}
+    url_type = _detect_response_type(item)
+    assert url_type == "person"
+
+
+def test_detect_response_type_place():
+    """Test _detect_response_type identifies PLACE type."""
+    from claw2immich.tooling import _detect_response_type
+    
+    item = {"placeId": "place-789", "type": "PLACE", "name": "New York"}
+    url_type = _detect_response_type(item)
+    assert url_type == "place"
+
+
+def test_detect_response_type_infer_from_field():
+    """Test _detect_response_type infers type from ID field names."""
+    from claw2immich.tooling import _detect_response_type
+    
+    # Can't determine without type field
+    item = {"albumId": "album-123"}
+    url_type = _detect_response_type(item)
+    assert url_type == "album"
+
+
+def test_detect_response_type_no_type():
+    """Test _detect_response_type returns None when unable to determine."""
+    from claw2immich.tooling import _detect_response_type
+    
+    item = {"name": "Unknown", "description": "No type field"}
+    url_type = _detect_response_type(item)
+    assert url_type is None
+
+
+def test_detect_response_type_not_dict():
+    """Test _detect_response_type returns None for non-dict."""
+    from claw2immich.tooling import _detect_response_type
+    
+    url_type = _detect_response_type("string")
+    assert url_type is None
+
+
+def test_decorate_response_array_with_images():
+    """Test _decorate_response handles array of IMAGE items."""
+    from claw2immich.tooling import _decorate_response
+    
+    response = [
+        {"id": "img-1", "type": "IMAGE", "name": "Photo 1"},
+        {"id": "img-2", "type": "IMAGE", "name": "Photo 2"},
+    ]
+    
+    decorated = _decorate_response(response, "https://immich.example.com", "array")
+    
+    assert len(decorated) == 2
+    assert decorated[0]["web_url"] == "https://immich.example.com/photos/img-1"
+    assert decorated[1]["web_url"] == "https://immich.example.com/photos/img-2"
+
+
+def test_decorate_response_array_mixed_types():
+    """Test _decorate_response handles array with mixed types."""
+    from claw2immich.tooling import _decorate_response
+    
+    response = [
+        {"id": "img-1", "type": "IMAGE", "name": "Photo"},
+        {"albums": [{"albumId": "album-1", "type": "ALBUM", "albumName": "Collection"}]},
+    ]
+    
+    decorated = _decorate_response(response, "https://immich.example.com", "array")
+    
+    assert len(decorated) == 2
+    assert "web_url" in decorated[0]
+    assert decorated[0]["web_url"] == "https://immich.example.com/photos/img-1"
+    # Second item doesn't have top-level type field, so it won't be decorated
+    assert "web_url" not in decorated[1]
+
+
+def test_decorate_response_array_preserves_structure():
+    """Test _decorate_response preserves array structure."""
+    from claw2immich.tooling import _decorate_response
+    
+    response = [
+        {"id": "img-1", "type": "IMAGE"},
+        {"id": "img-2", "type": "IMAGE"},
+        {"id": "img-3", "type": "IMAGE"},
+    ]
+    
+    decorated = _decorate_response(response, "https://immich.example.com", "array")
+    
+    assert isinstance(decorated, list)
+    assert len(decorated) == 3
+
+
+def test_decorate_response_array_empty():
+    """Test _decorate_response handles empty arrays."""
+    from claw2immich.tooling import _decorate_response
+    
+    response = []
+    decorated = _decorate_response(response, "https://immich.example.com", "array")
+    
+    assert decorated == []
+
+
+def test_decorate_response_array_no_domain():
+    """Test _decorate_response returns array unchanged when no domain."""
+    from claw2immich.tooling import _decorate_response
+    
+    response = [
+        {"id": "img-1", "type": "IMAGE"},
+        {"id": "img-2", "type": "IMAGE"},
+    ]
+    
+    decorated = _decorate_response(response, None, "array")
+    
+    # Should return original response when no domain
+    assert decorated == response
+    assert "web_url" not in decorated[0]
+
+
+def test_decorate_response_array_skip_items_without_id():
+    """Test _decorate_response skips array items without ID."""
+    from claw2immich.tooling import _decorate_response
+    
+    response = [
+        {"id": "img-1", "type": "IMAGE"},
+        {"type": "IMAGE", "name": "No ID"},  # Missing id field
+        {"id": "img-3", "type": "IMAGE"},
+    ]
+    
+    decorated = _decorate_response(response, "https://immich.example.com", "array")
+    
+    assert len(decorated) == 3
+    assert "web_url" in decorated[0]
+    assert "web_url" not in decorated[1]  # Skipped due to no ID
+    assert "web_url" in decorated[2]
+
+
+def test_decorate_response_array_non_dict_items():
+    """Test _decorate_response skips non-dict items in arrays."""
+    from claw2immich.tooling import _decorate_response
+    
+    response = [
+        {"id": "img-1", "type": "IMAGE"},
+        "string item",
+        {"id": "img-2", "type": "IMAGE"},
+    ]
+    
+    decorated = _decorate_response(response, "https://immich.example.com", "array")
+    
+    assert len(decorated) == 3
+    assert "web_url" in decorated[0]
+    assert decorated[1] == "string item"
+    assert "web_url" in decorated[2]
+
+
+def test_decorate_response_backward_compat_single_object():
+    """Test _decorate_response maintains backward compatibility for single objects."""
+    from claw2immich.tooling import _decorate_response
+    
+    # Single object with specific url_type (not 'array')
+    response = {"id": "asset-123"}
+    decorated = _decorate_response(response, "https://immich.example.com", "asset")
+    
+    assert isinstance(decorated, dict)
+    assert "web_url" in decorated
+    assert decorated["web_url"] == "https://immich.example.com/photos/asset-123"
+
+
+def test_decorate_response_backward_compat_album():
+    """Test _decorate_response maintains backward compatibility for albums."""
+    from claw2immich.tooling import _decorate_response
+    
+    response = {"albumId": "album-456"}
+    decorated = _decorate_response(response, "https://immich.example.com", "album")
+    
+    assert isinstance(decorated, dict)
+    assert "web_url" in decorated
+    assert decorated["web_url"] == "https://immich.example.com/albums/album-456"
+
+
+def test_decorate_response_array_videos():
+    """Test _decorate_response handles VIDEO items in arrays."""
+    from claw2immich.tooling import _decorate_response
+    
+    response = [
+        {"id": "vid-1", "type": "VIDEO", "name": "Movie 1"},
+        {"id": "vid-2", "type": "VIDEO", "name": "Movie 2"},
+    ]
+    
+    decorated = _decorate_response(response, "https://immich.example.com", "array")
+    
+    assert len(decorated) == 2
+    # Videos should also map to /photos/{id}
+    assert decorated[0]["web_url"] == "https://immich.example.com/photos/vid-1"
+    assert decorated[1]["web_url"] == "https://immich.example.com/photos/vid-2"
+
+
+def test_decorate_response_array_existing_web_urls():
+    """Test _decorate_response doesn't overwrite existing web_urls in arrays."""
+    from claw2immich.tooling import _decorate_response
+    
+    response = [
+        {"id": "img-1", "type": "IMAGE", "web_url": "https://custom.com/1"},
+        {"id": "img-2", "type": "IMAGE"},
+    ]
+    
+    decorated = _decorate_response(response, "https://immich.example.com", "array")
+    
+    # Should preserve custom URL
+    assert decorated[0]["web_url"] == "https://custom.com/1"
+    # Should add URL to second item
+    assert decorated[1]["web_url"] == "https://immich.example.com/photos/img-2"
