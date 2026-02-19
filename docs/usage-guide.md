@@ -42,7 +42,7 @@ Descriptions are enriched with:
 - `example:` short call sketch when required inputs exist
 - `returns:` response schema title and key fields when available
 
-When possible, call known tool names directly (for example `immich_getassetbyid`, `immich_searchassets`, `immich_searchsmart`) and use `inputSchema` only to confirm required fields.
+When possible, call known tool names directly (for example `immich_getassetinfo`, `immich_searchassets`, `immich_searchsmart`) and use `inputSchema` only to confirm required fields.
 
 ### Parameter Naming
 OpenAPI tool parameters are exposed as explicit fields:
@@ -111,30 +111,26 @@ Example instructions string:
 These examples use tool descriptions and parameter prefixes rather than hard-coded tool names.
 
 ### Get an Image (Asset by ID)
-1. Call `immich_getassetbyid`.
+1. Call `immich_getassetinfo`.
 2. Set `path_id` to the asset id.
 
 Example call:
-- Tool: `immich_getassetbyid`
+- Tool: `immich_getassetinfo`
 - Args: `{ "path_id": "<asset-id>" }`
 
 ### Download Original Asset File (Link/Base64)
 Use `downloadAsset` when the MCP client needs download access but does not have direct access to an Immich API key.
 
 1. Call `downloadAsset` with `asset_id`.
-2. Optional: set `output`:
-  - `base64` (default) for safe transport as text.
-  - `binary` is accepted as an alias; MCP-safe output remains base64.
-3. Choose delivery strategy via `IMMICH_DOWNLOAD_ASSET_DELIVERY` on server side:
-  - `shared_link` (default): server creates a short-lived tokenized shared link (30 minutes) and returns link metadata without payload bytes.
-  - `inline_base64`: server fetches bytes and returns base64 payload through MCP.
-   - `immich_link`: server first attempts shared-link creation; if unavailable, returns a direct Immich download URL (`/api/assets/{id}/original`) instead of payload bytes.
-4. Read link metadata (`download_url`, `expires_in_minutes`, `expires_at`) for shared-link mode or payload metadata (`content_type`, `size_bytes`, optional `filename`) for inline mode.
+2. Choose delivery strategy via `IMMICH_DOWNLOAD_ASSET_DELIVERY` on server side:
+  - `shared_link` (default): server creates a short-lived tokenized shared link (30 minutes) and returns link metadata without payload bytes. The link requires no authentication and can be shared directly.
+  - `inline_base64`: server fetches bytes and returns base64 payload through MCP. Note: large files may be truncated by MCP transport limits (~64 KB).
+  - `immich_link`: server first attempts shared-link creation; if unavailable, returns a direct Immich download URL (`/api/assets/{id}/original`) that requires authentication.
+3. Read link metadata (`download_url`, `expires_in_minutes`, `expires_at`) for shared-link mode or payload metadata (`content_type`, `size_bytes`, optional `filename`) for inline mode.
 
-Example calls:
+Example call:
 - Tool: `downloadAsset`
 - Args: `{ "asset_id": "<asset-id>" }`
-- Args: `{ "asset_id": "<asset-id>", "output": "binary" }`
 
 ### Find a Person
 1. Use `immich_searchperson` when available for direct name matching.
@@ -158,7 +154,7 @@ Example call:
 
 Example call:
 - Tool: `immich_searchassets`
-- Args: `{ "query_order": "desc", "body_size": 1 }`
+- Args: `{ "body_order": "desc", "body_size": 1 }`
 
 ### Search Assets (searchAssets)
 1. Use tool `immich_searchassets`.
@@ -188,12 +184,12 @@ Example call:
 - Args: `{ "body_deviceAssetId": "...", "body_deviceId": "camera-1", "body_fileCreatedAt": "2026-01-01T10:00:00.000Z" }`
 
 ### Share an Album
-1. Use `immich_createalbumsharelink` (or album-share endpoint tool in your version).
-2. Use `path_id` plus explicit sharing options.
+1. Use `immich_createsharedlink` to create a shared link for an album.
+2. Pass the album ID and sharing options in body fields.
 
 Example call:
-- Tool: `immich_createalbumsharelink`
-- Args: `{ "path_id": "<album-id>", "body_allowDownload": true }`
+- Tool: `immich_createsharedlink`
+- Args: `{ "body_type": "ALBUM", "body_albumId": "<album-id>", "body_allowDownload": true }`
 
 ## Tips
 - Always call `tool_access_report` first when permissions are uncertain.

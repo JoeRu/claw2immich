@@ -21,23 +21,23 @@ def register_prompts_and_resources(mcp) -> None:
     @mcp.prompt(title="Immich: Get image", description="Retrieve a single image or video asset by its ID.")
     def prompt_get_image(asset_id: str) -> str:
         return (
-            "Use tool `immich_getassetbyid`. "
+            "Use tool `immich_getassetinfo`. "
             "Call it with `path_id` set to the asset id. "
             "Example args: {\"path_id\": \"<asset-id>\"}. "
             f"Asset id: {asset_id}."
         )
 
-    @mcp.prompt(title="Immich: Download asset", description="Download the original asset bytes via MCP server credentials.")
-    def prompt_download_asset(asset_id: str, output: str = "base64") -> str:
+    @mcp.prompt(title="Immich: Download asset", description="Download or get a link to an asset via MCP server credentials.")
+    def prompt_download_asset(asset_id: str) -> str:
         return (
             "Use the tool named downloadAsset. "
-            "Pass asset_id and optional output mode. "
-            "By default, delivery mode is shared_link: the server returns a short-lived tokenized link (30 minutes) and no inline payload. "
-            "Set IMMICH_DOWNLOAD_ASSET_DELIVERY=inline_base64 only when inline base64 data is explicitly needed. "
-            "output='base64' and output='binary' are accepted, but MCP-safe payload output remains base64 in inline mode. "
-            "Example args: {\"asset_id\": \"<asset-id>\", \"output\": \"base64\"}. "
-            "This is useful when the MCP client does not have direct access to the API key. "
-            f"Asset id: {asset_id}. Requested output mode: {output}."
+            "Pass asset_id to get a download link or inline payload. "
+            "By default, delivery mode is shared_link: the server creates a short-lived "
+            "tokenized shared link (30 minutes) and returns link metadata without payload bytes. "
+            "Set IMMICH_DOWNLOAD_ASSET_DELIVERY=inline_base64 on the server side to get inline base64 data instead. "
+            "Example args: {\"asset_id\": \"<asset-id>\"}. "
+            "This is useful when the MCP client does not have direct access to the Immich API key. "
+            f"Asset id: {asset_id}."
         )
 
     @mcp.prompt(title="Immich: Find person", description="Search for a person by name using people or face endpoints.")
@@ -63,7 +63,7 @@ def register_prompts_and_resources(mcp) -> None:
     def prompt_newest_photo(limit: int = 1) -> str:
         return (
             "Use `immich_searchassets` for newest-first retrieval. "
-            "Example args: {\"body_size\": 1, \"query_order\": \"desc\"}. "
+            "Example args: {\"body_size\": 1, \"body_order\": \"desc\"}. "
             "Alternative: `immich_getallassets` with descending sort query fields when supported. "
             f"Limit: {limit}."
         )
@@ -80,9 +80,9 @@ def register_prompts_and_resources(mcp) -> None:
     @mcp.prompt(title="Immich: Share album", description="Share an existing album with other users or via link.")
     def prompt_share_album(album_id: str) -> str:
         return (
-            "Use `immich_createalbumsharelink` or the album-share tool for POST /api/albums/{id}/share. "
-            "Call with `path_id` and explicit body sharing options. "
-            "Example args: {\"path_id\": \"<album-id>\", \"body_allowDownload\": true}. "
+            "Use `immich_createsharedlink` to create a shared link for an album. "
+            "Pass the album ID in body_assetIds or use the appropriate body fields. "
+            "Example args: {\"body_type\": \"ALBUM\", \"body_albumId\": \"<album-id>\", \"body_allowDownload\": true}. "
             f"Album id: {album_id}."
         )
 
@@ -91,7 +91,7 @@ def register_prompts_and_resources(mcp) -> None:
         return (
             "Use tool `immich_searchassets`. "
             "Pass query/body fields directly without extra tool discovery. "
-            "Example args: {\"body_query\": \"mountain\", \"body_size\": 20, \"query_order\": \"desc\"}. "
+            "Example args: {\"body_query\": \"mountain\", \"body_size\": 20, \"body_order\": \"desc\"}. "
             f"Search query: {query}."
         )
 
@@ -111,7 +111,7 @@ def register_prompts_and_resources(mcp) -> None:
             "IMPORTANT: To find images with multiple people together (AND logic), "
             "pass body_personIds as an ARRAY: [\"person-id-1\", \"person-id-2\", ...]. "
             "This searches for images where ALL specified persons appear. "
-            "For newest images first, set query_order to \"desc\". "
+            "For newest images first, set body_order to \"desc\". "
             "For OR logic (any person), you must make separate searches and merge results. "
             f"Person IDs (comma-separated): {person_ids}."
         )
