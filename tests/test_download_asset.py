@@ -47,9 +47,13 @@ def test_download_asset_rejects_invalid_output() -> None:
 
 
 def test_download_asset_immich_link_delivery_mode() -> None:
+    """immich_link falls back to base_url when no external domain is configured."""
     with patch(
         "claw2immich.tooling.get_download_asset_delivery_mode",
         return_value="immich_link",
+    ), patch(
+        "claw2immich.tooling.get_external_domain",
+        return_value=None,
     ), patch(
         "claw2immich.tooling._get_config",
         return_value={
@@ -64,3 +68,26 @@ def test_download_asset_immich_link_delivery_mode() -> None:
     assert result["delivery_mode"] == "immich_link"
     assert result["requires_auth"] is True
     assert result["download_url"] == "https://immich.example.com/api/assets/asset-link/original"
+
+
+def test_download_asset_immich_link_prefers_external_domain() -> None:
+    """immich_link uses the external domain when it is configured."""
+    with patch(
+        "claw2immich.tooling.get_download_asset_delivery_mode",
+        return_value="immich_link",
+    ), patch(
+        "claw2immich.tooling.get_external_domain",
+        return_value="https://photos.mydomain.com",
+    ), patch(
+        "claw2immich.tooling._get_config",
+        return_value={
+            "base_url": "http://immich:2283",
+            "api_key": "test",
+            "api_token": "",
+        },
+    ):
+        result = download_asset("asset-ext")
+
+    assert result["asset_id"] == "asset-ext"
+    assert result["delivery_mode"] == "immich_link"
+    assert result["download_url"] == "https://photos.mydomain.com/api/assets/asset-ext/original"

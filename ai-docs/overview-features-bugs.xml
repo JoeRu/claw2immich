@@ -526,8 +526,8 @@
       </impact-check>
       <r>
         <outcome>DONE</outcome>
-        <observations>Root cause was method gating in _should_decorate_response(): search endpoints are POST in Immich but decoration was restricted to GET. Updated logic to allow POST decoration for /search/* while keeping non-search POST endpoints undecorated. Added regression tests for POST search decoration behavior.</observations>
-        <lessons-learned>Read-only POST endpoints (especially search APIs) need explicit handling in decorators and capability checks; HTTP method alone is not a reliable proxy for mutability in Immich APIs.</lessons-learned>
+        <observations>Two root causes found. (1) Original fix enabled POST search decoration via _should_decorate_response() — correct but insufficient. (2) Immich search responses use a nested section structure {"assets": {"total": N, "items": [...]}, "albums": {"total": N, "items": [...]}} where section values are dicts, not flat lists. _extract_decoratable_array() only checked for isinstance(response[field], list), never detecting these nested sections. Fixed by adding a "sections" wrapper type: _extract_decoratable_array() now detects dict sections with inner "items" lists, and _decorate_response() iterates over all search sections (assets, albums, people, places) decorating each item. Module-level constants _ARRAY_FIELD_NAMES and _SEARCH_SECTION_KEYS replace duplicated inline tuples. Added 8 new tests covering nested section decoration, metadata preservation, empty sections, and person UUID safety within search results.</observations>
+        <lessons-learned>Unit tests for API response handling must model real API response shapes, not assumed flat structures. Immich search endpoints return multi-section nested dicts, not simple arrays or single-field wrappers.</lessons-learned>
         <files>
           <file>claw2immich/tooling.py</file>
           <file>tests/test_url_decoration.py</file>
@@ -575,8 +575,8 @@
       </impact-check>
       <r>
         <outcome>DONE</outcome>
-        <observations>Implemented a practical delivery strategy toggle for downloadAsset via IMMICH_DOWNLOAD_ASSET_DELIVERY: inline_base64 (default) and immich_link (returns authenticated Immich download URL metadata). This provides user-visible decision options without requiring a custom MCP REST route. Updated usage guide and tests for mode validation and link-mode behavior.</observations>
-        <lessons-learned>For MCP transports, introducing explicit delivery-mode configuration is a low-risk way to support different client capabilities while deferring heavier server-embedded endpoint work.</lessons-learned>
+        <observations>Delivery strategy toggle implemented via IMMICH_DOWNLOAD_ASSET_DELIVERY (inline_base64 default, immich_link alternative). Bug found in immich_link mode: download_url was built from config['base_url'] (internal/Docker URL like http://immich:2283) instead of the client-reachable external domain. Fixed by using get_external_domain() with fallback to config['base_url']. Added test verifying external domain preference when IMMICH_EXTERNAL_DOMAIN is set. Updated existing immich_link test to explicitly patch get_external_domain(return_value=None) for the internal-URL-fallback case.</observations>
+        <lessons-learned>URLs returned to MCP clients must use the external domain, not internal service addresses. Always prefer get_external_domain() for any URL that leaves the server boundary.</lessons-learned>
         <files>
           <file>claw2immich/config.py</file>
           <file>claw2immich/tooling.py</file>
@@ -724,8 +724,8 @@
       </impact-check>
       <r>
         <outcome>DONE</outcome>
-        <observations>Implemented URL-decoration ID extraction with URL-type-aware precedence to prevent person UUID leakage into asset URLs. Asset decoration now only accepts asset identifiers (`assetId`, `id`) and no longer falls back to `personId` for `/photos/{id}` links. Added regression unit tests for mixed asset/person field payloads and tightened integration assertions so asset links are checked against asset UUID semantics (including explicit negative check when `personId` is present).</observations>
-        <lessons-learned>For SPA-backed URLs, HTTP 200 is insufficient as a correctness signal. Verification must assert semantic URL composition (entity type + expected UUID source) to avoid false positives.</lessons-learned>
+        <observations>URL-type-aware _extract_entity_id() precedence was correctly implemented previously (asset type → only assetId/id, never personId). However, the fix was inert for search results because item 52's nested-section bug prevented decoration from reaching individual items at all. With item 52 now fixed (_extract_decoratable_array handles nested dict sections), the person-UUID-safe extraction is exercised end-to-end. Added new regression tests: (1) test_decorate_response_search_person_uuid_not_leaked — asset with nested people array must use asset UUID, not person UUID; (2) test_decorate_response_search_asset_with_personid_field — asset with stray personId field still gets /photos/{asset-id}. Both tests operate on realistic nested search response shapes.</observations>
+        <lessons-learned>Fixes to downstream pipeline stages (ID extraction) are useless if upstream stages (array extraction) silently skip the input. End-to-end tests with real response shapes are essential to verify the full decoration pipeline.</lessons-learned>
         <files>
           <file>claw2immich/tooling.py</file>
           <file>tests/test_url_decoration.py</file>
@@ -862,6 +862,7 @@
       (read_only, read_write, full_scope) to docker-compose.yaml with inline documentation.</entry>
     <entry date="2026-02-17" user="Claude Code">Update scan completed. Architecture verified (no drift). Dependencies verified (httpx, mcp[cli] match pyproject.toml). All 42 completed features' files verified present. Discovered helper/ utility scripts (mcp_tool_access_report.py, archive_items.py/ps1) - documented as dev utilities, not product features. 3 PENDING items remain in archive (19, 20, 21) - flagged for review. All tests passing (87 tests).</entry>
     <entry date="2026-02-18" user="Claude Code">Implemented item 46. Added IMMICH_EXTERNAL_DOMAIN env var support with config.py get_external_domain() function (with validation). Created URL decoration helpers (_should_decorate_response, _extract_single_id, _decorate_response) in tooling.py to add web_url field to asset/album/person/place responses. Updated _register_openapi_tools to pass external domain and decorate responses. Updated docker-compose.yaml with commented example, constants.py build_server_instructions to reference new var, and mcp_app.py to check configured domain first. Added 45+ tests (test_url_decoration.py + 4 new config tests). Updated README and usage-guide.md documentation. All syntax checks pass.</entry>
+    <entry date="2026-02-18" user="Claude Code">Re-fixed items 52, 53, 56 after audit found prior fixes incomplete. Item 52: real Immich search responses have nested dict sections ({"assets": {"items": [...]}, "albums": {"items": [...]}}) not flat lists; updated _extract_decoratable_array() to detect "sections" wrapper type and _decorate_response() to iterate over nested section items; added module-level _ARRAY_FIELD_NAMES and _SEARCH_SECTION_KEYS constants. Item 53: immich_link mode was using internal config['base_url'] for download URL; changed to get_external_domain() with fallback. Item 56: _extract_entity_id URL-type-aware precedence was correct but was never exercised because item 52 blocked decoration; now works end-to-end. Added 10 new tests (8 search-section + 2 download-delivery). 95 decoration+download tests pass, 93 total suite pass (8 skipped integration).</entry>
   </changelog>
 
   <archive>

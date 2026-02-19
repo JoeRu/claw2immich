@@ -203,6 +203,26 @@ def _detect_response_type(item: Any) -> str | None:
     return None
 
 
+# Wrapper field names for single-array extraction.
+_ARRAY_FIELD_NAMES = (
+    "results",
+    "data",
+    "items",
+    "assets",
+    "albums",
+    "people",
+    "places",
+    "photos",
+    "memories",
+    "timelines",
+    "statistics",
+)
+
+# Section keys whose inner "items" lists should be decorated in
+# multi-section responses (e.g. Immich search results).
+_SEARCH_SECTION_KEYS = ("assets", "albums", "people", "places")
+
+
 def _extract_decoratable_array(response: Any) -> tuple[list[Any] | None, str]:
     """
     Extract a decoratable array from a response, handling nested structures.
@@ -210,6 +230,7 @@ def _extract_decoratable_array(response: Any) -> tuple[list[Any] | None, str]:
     Supports various response formats:
     - Direct array: [...]
     - Wrapped array: {"results": [...], ...}, {"data": [...], ...}, {"assets": [...], ...}
+    - Nested section: {"assets": {"items": [...]}, "albums": {"items": [...]}}
     - Other wrapped formats with nested arrays
     
     Args:
@@ -218,7 +239,8 @@ def _extract_decoratable_array(response: Any) -> tuple[list[Any] | None, str]:
     Returns:
         Tuple of (array, wrapper_type) where:
         - array: the extracted array or None if not found
-        - wrapper_type: 'direct' for direct array, 'wrapped' for dict with array field, or 'none' if not found
+        - wrapper_type: 'direct' for direct array, 'wrapped' for dict with array
+          field, 'sections' for multi-section search responses, or 'none' if not found
     """
     if isinstance(response, list):
         return response, "direct"
@@ -226,24 +248,21 @@ def _extract_decoratable_array(response: Any) -> tuple[list[Any] | None, str]:
     if not isinstance(response, dict):
         return None, "none"
     
-    # Common wrapper field names for arrays
-    array_field_names = (
-        "results",
-        "data",
-        "items",
-        "assets",
-        "albums",
-        "people",
-        "places",
-        "photos",
-        "memories",
-        "timelines",
-        "statistics",
-    )
-    
-    for field_name in array_field_names:
+    # 1) Direct list fields (e.g. {"results": [...], "total": 5})
+    for field_name in _ARRAY_FIELD_NAMES:
         if field_name in response and isinstance(response[field_name], list):
             return response[field_name], "wrapped"
+    
+    # 2) Multi-section search responses where each section is a dict
+    #    containing an inner "items" list
+    #    e.g. {"assets": {"items": [...]}, "albums": {"items": [...]}}
+    for section_key in _SEARCH_SECTION_KEYS:
+        section = response.get(section_key)
+        if (
+            isinstance(section, dict)
+            and isinstance(section.get("items"), list)
+        ):
+            return None, "sections"
     
     return None, "none"
 
@@ -258,6 +277,7 @@ def _decorate_response(
     - Single entity: adds web_url field directly
     - Direct array: processes each item and adds web_url to decoratable items
     - Wrapped array: extracts array from common wrapper fields (results, data, assets, etc.)
+    - Multi-section search: {"assets": {"items": [...]}, "albums": {"items": [...]}}
     - Mixed structures: applies decoration to decoratable items and preserves structure
     
     Args:
@@ -284,23 +304,28 @@ def _decorate_response(
         # Update the response with decorated array
         result = dict(response)  # Shallow copy
         # Find which field contains the array and update it
-        array_field_names = (
-            "results",
-            "data",
-            "items",
-            "assets",
-            "albums",
-            "people",
-            "places",
-            "photos",
-            "memories",
-            "timelines",
-            "statistics",
-        )
-        for field_name in array_field_names:
+        for field_name in _ARRAY_FIELD_NAMES:
             if field_name in result and isinstance(result[field_name], list):
                 result[field_name] = decorated_array
                 break
+        return result
+    
+    if wrapper_type == "sections":
+        # Multi-section search response, e.g.
+        # {"assets": {"items": [...]}, "albums": {"items": [...]}}
+        result = dict(response)  # Shallow copy
+        for section_key in _SEARCH_SECTION_KEYS:
+            section = result.get(section_key)
+            if not isinstance(section, dict):
+                continue
+            items = section.get("items")
+            if not isinstance(items, list):
+                continue
+            decorated_items = [
+                _decorate_single_item(item, external_domain, url_type)
+                for item in items
+            ]
+            result[section_key] = {**section, "items": decorated_items}
         return result
     
     # Not an array - try to decorate as single item if it's a dict
@@ -571,10 +596,11 @@ def download_asset(asset_id: str, output: str = "base64") -> dict[str, Any]:
         delivery_mode = get_download_asset_delivery_mode()
         if delivery_mode == "immich_link":
             config = _get_config()
+            domain = get_external_domain() or config["base_url"]
             return {
                 "asset_id": asset_id,
                 "delivery_mode": "immich_link",
-                "download_url": f"{config['base_url']}/api/assets/{asset_id}/original",
+                "download_url": f"{domain}/api/assets/{asset_id}/original",
                 "requires_auth": True,
                 "note": (
                     "Client must authenticate directly against Immich when using immich_link mode. "

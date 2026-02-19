@@ -996,3 +996,160 @@ def test_decorate_response_album_with_albumname_field():
 
     assert isinstance(decorated, list)
     assert decorated[0]["web_url"] == "https://immich.example.com/albums/album-123"
+
+
+# ---------------------------------------------------------------------------
+# Multi-section search response tests (Items 52 & 56)
+# ---------------------------------------------------------------------------
+
+_SEARCH_RESPONSE_FIXTURE = {
+    "albums": {
+        "total": 1,
+        "count": 1,
+        "items": [
+            {"id": "album-abc", "albumName": "Holiday", "ownerId": "user-1"}
+        ],
+        "facets": [],
+    },
+    "assets": {
+        "total": 2,
+        "count": 2,
+        "items": [
+            {
+                "id": "asset-001",
+                "type": "IMAGE",
+                "originalFileName": "sunset.jpg",
+                "people": [],
+            },
+            {
+                "id": "asset-002",
+                "type": "VIDEO",
+                "originalFileName": "clip.mp4",
+                "people": [
+                    {"id": "person-999", "name": "Amy"}
+                ],
+            },
+        ],
+        "facets": [],
+        "nextPage": None,
+    },
+}
+
+
+def test_extract_decoratable_array_nested_sections():
+    """Nested search response with dict sections should be detected as 'sections'."""
+    from claw2immich.tooling import _extract_decoratable_array
+
+    arr, wtype = _extract_decoratable_array(_SEARCH_RESPONSE_FIXTURE)
+    assert wtype == "sections"
+    assert arr is None  # individual arrays live inside the sections
+
+
+def test_extract_decoratable_array_flat_assets_still_works():
+    """A response with 'assets' as a flat list should still be detected as 'wrapped'."""
+    from claw2immich.tooling import _extract_decoratable_array
+
+    flat = {"assets": [{"id": "a1"}, {"id": "a2"}], "total": 2}
+    arr, wtype = _extract_decoratable_array(flat)
+    assert wtype == "wrapped"
+    assert len(arr) == 2
+
+
+def test_decorate_response_search_sections():
+    """_decorate_response adds web_url inside every nested section."""
+    from claw2immich.tooling import _decorate_response
+    import copy
+
+    response = copy.deepcopy(_SEARCH_RESPONSE_FIXTURE)
+    decorated = _decorate_response(response, "https://photos.example.com", "array")
+
+    # Assets section
+    assets = decorated["assets"]["items"]
+    assert len(assets) == 2
+    assert assets[0]["web_url"] == "https://photos.example.com/photos/asset-001"
+    assert assets[1]["web_url"] == "https://photos.example.com/photos/asset-002"
+
+    # Albums section
+    albums = decorated["albums"]["items"]
+    assert len(albums) == 1
+    assert albums[0]["web_url"] == "https://photos.example.com/albums/album-abc"
+
+
+def test_decorate_response_search_preserves_metadata():
+    """Decoration must not destroy totals, facets, or nextPage in sections."""
+    from claw2immich.tooling import _decorate_response
+    import copy
+
+    response = copy.deepcopy(_SEARCH_RESPONSE_FIXTURE)
+    decorated = _decorate_response(response, "https://photos.example.com", "array")
+
+    assert decorated["assets"]["total"] == 2
+    assert decorated["assets"]["count"] == 2
+    assert decorated["assets"]["facets"] == []
+    assert decorated["assets"]["nextPage"] is None
+    assert decorated["albums"]["total"] == 1
+
+
+def test_decorate_response_search_empty_sections():
+    """Empty items lists are harmless."""
+    from claw2immich.tooling import _decorate_response
+
+    response = {
+        "assets": {"total": 0, "count": 0, "items": [], "facets": []},
+        "albums": {"total": 0, "count": 0, "items": [], "facets": []},
+    }
+    decorated = _decorate_response(response, "https://photos.example.com", "array")
+    assert decorated["assets"]["items"] == []
+    assert decorated["albums"]["items"] == []
+
+
+def test_decorate_response_search_person_uuid_not_leaked():
+    """Item 56: asset with nested people must NOT use person UUID in web_url."""
+    from claw2immich.tooling import _decorate_response
+
+    response = {
+        "assets": {
+            "total": 1,
+            "count": 1,
+            "items": [
+                {
+                    "id": "asset-abc",
+                    "type": "IMAGE",
+                    "people": [
+                        {"id": "person-BAD", "name": "Amy"}
+                    ],
+                }
+            ],
+            "facets": [],
+        },
+        "albums": {"total": 0, "count": 0, "items": [], "facets": []},
+    }
+    decorated = _decorate_response(response, "https://photos.example.com", "array")
+    url = decorated["assets"]["items"][0]["web_url"]
+    assert "person-BAD" not in url
+    assert url == "https://photos.example.com/photos/asset-abc"
+
+
+def test_decorate_response_search_asset_with_personid_field():
+    """Item 56 edge-case: asset containing a stray personId field should still
+    receive an asset URL, not a person URL, when type='IMAGE'."""
+    from claw2immich.tooling import _decorate_response
+
+    response = {
+        "assets": {
+            "total": 1,
+            "count": 1,
+            "items": [
+                {
+                    "id": "asset-xyz",
+                    "type": "IMAGE",
+                    "personId": "person-STRAY",
+                }
+            ],
+            "facets": [],
+        },
+    }
+    decorated = _decorate_response(response, "https://photos.example.com", "array")
+    url = decorated["assets"]["items"][0]["web_url"]
+    assert "person-STRAY" not in url
+    assert url == "https://photos.example.com/photos/asset-xyz"
