@@ -1,12 +1,11 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version='1.0' encoding='utf-8'?>
 <overview>
   <metadata>
     <title>claw2immich</title>
     <version>0.1.0</version>
     <analyzed>2026-02-15</analyzed>
-    <updated>2026-02-17</updated>
+    <updated>2026-02-19</updated>
   </metadata>
-
   <architecture>
     <description>Python package entry point with module-based MCP server, configurable stdio/SSE/streamable HTTP transports, and Immich REST API access.</description>
     <patterns>
@@ -34,16 +33,14 @@
       <decision date="2026-02-16">Refactor into a module-based package while keeping main.py as a thin entry point.</decision>
     </design-decisions>
   </architecture>
-
   <environments>
     <environment name="dev">Local development only (no staging/prod defined)</environment>
   </environments>
-
   <security>
     <note completed="2026-02-15" source-item="1">Auth and network handling introduced for Immich API access; ensure secrets are not logged and TLS is required.</note>
     <note completed="2026-02-16" source-item="8">OpenAPI tools are filtered by permission metadata and write probes to reduce unauthorized exposure; avoid logging secrets.</note>
+    <note completed="2026-02-19" source-item="61">Security-related item 61 archived as DONE; mitigation recorded in implementation results.</note>
   </security>
-
   <completed-features>
     <feature id="CF-1" completed="2026-02-15" source-item="1" completeness="FULL" test-coverage="TESTED">
       <title>Implement MCP server for Immich REST API</title>
@@ -403,8 +400,198 @@
         <file>tests/test_instructions.py</file>
       </files>
     </feature>
+    <feature id="CF-45" completed="2026-02-19" source-item="45" completeness="FULL" test-coverage="TESTED">
+      <title>Add prompt example for multi-person image search using immich_searchassets</title>
+      <description>Added prompt_search_multiple_people to prompts.py with clear guidance on using body_personIds as an array for AND logic when searching for images with multiple people. The prompt text explicitly explains the difference between AND logic (array of person IDs in one call) and OR logic (separate searches). Updated test_prompts.py to expect 9 prompts instead of 8. All tests pass successfully.</description>
+      <files>
+        <file>claw2immich/prompts.py</file>
+        <file>tests/test_prompts.py</file>
+        <file>ai-docs/overview-features-bugs.xml</file>
+      </files>
+    </feature>
+    <feature id="CF-43" completed="2026-02-19" source-item="43" completeness="FULL" test-coverage="TESTED">
+      <title>Tests fail during collection in CI due to missing environment configuration</title>
+      <description>Root cause was missing build-system configuration and incomplete package discovery in pyproject.toml. The claw2immich package was not being installed in editable mode due to setuptools detecting multiple top-level packages (claw2immich and helper in flat layout). Fixed by: (1) Adding [build-system] with setuptools backend, (2) Configuring [tool.setuptools.packages.find] to explicitly include only claw2immich and exclude helper/tests/docs, (3) Adding [tool.setuptools] py-modules = ["main"] to make main.py importable. Tests now collect without errors: 87 tests pass with `uv sync --frozen` (CI approach) and local editable installs. No environment variables needed for test collection.</description>
+      <files>
+        <file>pyproject.toml</file>
+      </files>
+    </feature>
+    <feature id="CF-44" completed="2026-02-19" source-item="44" completeness="FULL" test-coverage="TESTED">
+      <title>Build and publish Docker images to GitHub Container Registry</title>
+      <description>Created build-docker.yml workflow with comprehensive Docker image build and push logic: (1) Triggers on push to main/develop, PRs to main, and tags matching v*; (2) Uses docker/setup-buildx-action@v3 for multi-architecture builds (linux/amd64, linux/arm64); (3) Authenticates to GHCR with GitHub token (permissions.packages: write) and skips auth for PRs; (4) Uses docker/metadata-action to automatically generate tags: latest (main), develop (develop branch), semver versions, and commit SHA; (5) Cache optimization with GitHub Actions cache backend. Updated README.md with section on pulling pre-built images from GHCR with examples for latest, develop, specific versions, and different transport modes/profiles. Workflow properly depends on the existing CI pipeline (item 34) without explicit job dependency since tests run on the same branch conditions.</description>
+      <files>
+        <file>.github/workflows/build-docker.yml</file>
+        <file>README.md</file>
+      </files>
+    </feature>
+    <feature id="CF-52" completed="2026-02-19" source-item="52" completeness="FULL" test-coverage="TESTED">
+      <title>Regression: web_url missing in immich_searchassets and immich_searchsmart item results</title>
+      <description>Two root causes found. (1) Original fix enabled POST search decoration via _should_decorate_response() — correct but insufficient. (2) Immich search responses use a nested section structure {"assets": {"total": N, "items": [...]}, "albums": {"total": N, "items": [...]}} where section values are dicts, not flat lists. _extract_decoratable_array() only checked for isinstance(response[field], list), never detecting these nested sections. Fixed by adding a "sections" wrapper type: _extract_decoratable_array() now detects dict sections with inner "items" lists, and _decorate_response() iterates over all search sections (assets, albums, people, places) decorating each item. Module-level constants _ARRAY_FIELD_NAMES and _SEARCH_SECTION_KEYS replace duplicated inline tuples. Added 8 new tests covering nested section decoration, metadata preservation, empty sections, and person UUID safety within search results.</description>
+      <files>
+        <file>claw2immich/tooling.py</file>
+        <file>tests/test_url_decoration.py</file>
+      </files>
+    </feature>
+    <feature id="CF-53" completed="2026-02-19" source-item="53" completeness="FULL" test-coverage="TESTED">
+      <title>Refactor downloadAsset delivery for MCP payload limits (REST endpoint vs temporary Immich link)</title>
+      <description>Delivery strategy toggle implemented via IMMICH_DOWNLOAD_ASSET_DELIVERY (inline_base64 default, immich_link alternative). Bug found in immich_link mode: download_url was built from config['base_url'] (internal/Docker URL like http://immich:2283) instead of the client-reachable external domain. Fixed by using get_external_domain() with fallback to config['base_url']. Added test verifying external domain preference when IMMICH_EXTERNAL_DOMAIN is set. Updated existing immich_link test to explicitly patch get_external_domain(return_value=None) for the internal-URL-fallback case.</description>
+      <files>
+        <file>claw2immich/config.py</file>
+        <file>claw2immich/tooling.py</file>
+        <file>docs/usage-guide.md</file>
+        <file>tests/test_config.py</file>
+        <file>tests/test_download_asset.py</file>
+      </files>
+    </feature>
+    <feature id="CF-54" completed="2026-02-19" source-item="54" completeness="FULL" test-coverage="TESTED">
+      <title>Native binary endpoints return corrupted payload via UTF-8/JSON serialization (immich_downloadasset, immich_viewasset)</title>
+      <description>Confirmed byte corruption risk at server serialization boundaries rather than Immich source bytes. Fixed by making non-text _request responses JSON-safe (base64 wrapper with metadata) and by removing raw-byte payload emission from downloadAsset; binary request mode now returns base64 plus warning/metadata. Added regression tests for binary wrapping in both http_client and downloadAsset paths.</description>
+      <files>
+        <file>claw2immich/http_client.py</file>
+        <file>claw2immich/tooling.py</file>
+        <file>docs/usage-guide.md</file>
+        <file>tests/test_http_client.py</file>
+        <file>tests/test_download_asset.py</file>
+      </files>
+    </feature>
+    <feature id="CF-55" completed="2026-02-19" source-item="55" completeness="FULL" test-coverage="TESTED">
+      <title>Make MCP prompts concrete with explicit tool names and argument templates</title>
+      <description>Refactored prompt messages from discovery-first wording to direct tool invocation guidance with explicit tool names and copy-ready argument patterns. Updated search, smart-search, get-image, person/location, upload, share, and download prompt texts plus usage-guide workflows for consistency.</description>
+      <files>
+        <file>claw2immich/prompts.py</file>
+        <file>docs/usage-guide.md</file>
+        <file>tests/test_prompts.py</file>
+      </files>
+    </feature>
+    <feature id="CF-56" completed="2026-02-19" source-item="56" completeness="FULL" test-coverage="TESTED">
+      <title>Asset web_url may use person UUID instead of asset UUID for person-tagged assets</title>
+      <description>URL-type-aware _extract_entity_id() precedence was correctly implemented previously (asset type → only assetId/id, never personId). However, the fix was inert for search results because item 52's nested-section bug prevented decoration from reaching individual items at all. With item 52 now fixed (_extract_decoratable_array handles nested dict sections), the person-UUID-safe extraction is exercised end-to-end. Added new regression tests: (1) test_decorate_response_search_person_uuid_not_leaked — asset with nested people array must use asset UUID, not person UUID; (2) test_decorate_response_search_asset_with_personid_field — asset with stray personId field still gets /photos/{asset-id}. Both tests operate on realistic nested search response shapes.</description>
+      <files>
+        <file>claw2immich/tooling.py</file>
+        <file>tests/test_url_decoration.py</file>
+        <file>tests/test_integration_url_access.py</file>
+      </files>
+    </feature>
+    <feature id="CF-57" completed="2026-02-19" source-item="57" completeness="FULL" test-coverage="TESTED">
+      <title>Add helper script to list .env files and run Smart Search with direct JSON output</title>
+      <description>Implemented helper/smart_search_cli.py with CLI options to list available .env files and execute POST /api/search/smart using selected env credentials. Script prints direct JSON output to stdout and returns non-zero exit codes for missing args, missing env file, config/auth errors, and request failures. Added focused tests for env listing/parsing, argument validation, success path, and HTTP error handling.</description>
+      <files>
+        <file>helper/smart_search_cli.py</file>
+        <file>tests/test_helper_smart_search_cli.py</file>
+        <file>README.md</file>
+      </files>
+    </feature>
+    <feature id="CF-59" completed="2026-02-19" source-item="59" completeness="FULL" test-coverage="TESTED">
+      <title>Nested person objects may be decorated with /photos/{id} instead of /people/{id}</title>
+      <description>Item 59 was effectively resolved by item 58's single-entity precedence fix. Added regression tests proving nested people objects in asset-detail payloads no longer get decorated as `/photos/{person-id}` and that top-level asset URL remains correct.</description>
+      <files>
+        <file>claw2immich/tooling.py</file>
+        <file>tests/test_url_decoration.py</file>
+      </files>
+    </feature>
+    <feature id="CF-60" completed="2026-02-19" source-item="60" completeness="FULL" test-coverage="TESTED">
+      <title>downloadAsset output parameter is misleading because binary request still returns base64</title>
+      <description>Full-suite regression detected on 2026-02-19: `tests/test_download_asset.py::test_download_asset_binary_mode` fails with `KeyError: 'asset_id'`. Failure path shows `download_asset()` currently validates `output` with `if mode not in ("base64")`, rejecting `output="binary"` and returning an error payload (without `asset_id`) instead of the expected MCP-safe base64 response. Item moved back to IN_PROGRESS for corrective implementation.</description>
+      <files>
+        <file>claw2immich/tooling.py</file>
+        <file>tests/test_download_asset.py</file>
+        <file>docs/usage-guide.md</file>
+      </files>
+    </feature>
+    <feature id="CF-61" completed="2026-02-19" source-item="61" completeness="FULL" test-coverage="TESTED">
+      <title>downloadAsset should return short-lived shared link instead of payload data when API supports it</title>
+      <description>Implemented shared-link-first delivery for `downloadAsset` in `shared_link` and `immich_link` modes. The tool now attempts Immich shared-link creation (`/api/shared-links/createSharedLink` and fallback `/api/shared-links`) with 30-minute TTL and returns link-only metadata (no inline file payload). `shared_link` mode now fails clearly when creation is unavailable; `immich_link` mode falls back to direct authenticated Immich link. Added config support for `IMMICH_DOWNLOAD_ASSET_DELIVERY=shared_link`, plus tests for success/failure/fallback paths.</description>
+      <files>
+        <file>claw2immich/tooling.py</file>
+        <file>claw2immich/config.py</file>
+        <file>tests/test_download_asset.py</file>
+        <file>tests/test_config.py</file>
+        <file>README.md</file>
+        <file>docs/usage-guide.md</file>
+      </files>
+    </feature>
+    <feature id="CF-50" completed="2026-02-19" source-item="50" completeness="FULL" test-coverage="TESTED">
+      <title>Integration test: verify web_url accessibility for all URL types (items 46–49)</title>
+      <description>Executed full test workflow (`uv run pytest tests/ -v`) and initially observed 2 failures in tests/test_integration_url_access.py: (1) test_asset_web_url_accessible failed on Immich instances returning 404 for GET /api/assets, (2) test_album_web_url_accessible detected incorrect /photos/{id} decoration for album list entries containing only generic id fields. Failure mapping: primary match to item 50 (this integration suite), with root-cause code path in claw2immich/tooling.py. Fixes applied: added fallback in asset integration test to POST /api/search/assets when GET /api/assets is unavailable; improved _detect_response_type() album inference using album-specific fields (albumName, albumThumbnailAssetId, sharedLinkId, isActivityEnabled); added unit regressions for album-name inference. Re-ran full suite: 173 passed, 11 skipped, 0 failed.</description>
+      <files>
+        <file>tests/test_integration_url_access.py</file>
+        <file>claw2immich/tooling.py</file>
+        <file>tests/test_url_decoration.py</file>
+      </files>
+    </feature>
+    <feature id="CF-51" completed="2026-02-19" source-item="51" completeness="FULL" test-coverage="TESTED">
+      <title>Add downloadAsset tool with JSON-safe base64 and configurable link delivery</title>
+      <description>Item 51 is implemented and aligned with item 53 strategy: downloadAsset now returns JSON-safe base64 payloads for MCP transport, accepts binary request mode without emitting raw bytes, and supports delivery strategy selection via IMMICH_DOWNLOAD_ASSET_DELIVERY (`inline_base64` or `immich_link`). Tests were extended for delivery mode config, link mode, and binary-safe behavior.</description>
+      <files>
+        <file>claw2immich/config.py</file>
+        <file>claw2immich/http_client.py</file>
+        <file>claw2immich/tooling.py</file>
+        <file>docs/usage-guide.md</file>
+        <file>tests/test_config.py</file>
+        <file>tests/test_download_asset.py</file>
+        <file>tests/test_http_client.py</file>
+      </files>
+    </feature>
+    <feature id="CF-58" completed="2026-02-19" source-item="58" completeness="FULL" test-coverage="TESTED">
+      <title>getassetinfo: Top-level asset misses web_url while nested people are decorated</title>
+      <description>Root cause confirmed in `_decorate_response`: array extraction ran before single-entity decoration and interpreted nested `people[]` in asset detail responses as wrapped top-level arrays. Added early-return logic for non-`array` url types so single-entity endpoints decorate the top-level dict first. This restores `web_url` on `immich_getassetinfo` asset responses.</description>
+      <files>
+        <file>claw2immich/tooling.py</file>
+        <file>tests/test_url_decoration.py</file>
+      </files>
+    </feature>
+    <feature id="CF-49" completed="2026-02-19" source-item="49" completeness="FULL" test-coverage="TESTED">
+      <title>Person objects decorated with /photos/{id} instead of /people/{id} URLs</title>
+      <description>The heuristic fix for person-object type detection was already partially in place
+          (birthDate, thumbnailPath). During implementation, two additional Immich-exclusive person
+          fields were identified and added to the heuristic check: isHidden (a boolean always present
+          on person objects, never on assets) and faces (array field returned in detailed person
+          responses). The final detection order in _detect_response_type() is: explicit type field
+          (PERSON/IMAGE/etc.) → dedicated ID fields (personId, albumId, placeId) → person-specific
+          structural fields (birthDate, thumbnailPath, isHidden, faces) → fallback to asset if "id"
+          present. Added 3 new tests: test_detect_response_type_person_with_ishidden,
+          test_detect_response_type_person_with_faces, and
+          test_decorate_response_person_with_ishidden_field. All 77 url-decoration tests pass;
+          full suite: 159 passed, 12 skipped, 3 pre-existing MCP-client failures (Connection
+          refused — require live Immich server, unrelated to this item).</description>
+      <files>
+        <file>claw2immich/tooling.py</file>
+        <file>tests/test_url_decoration.py</file>
+      </files>
+    </feature>
+    <feature id="CF-48" completed="2026-02-19" source-item="48" completeness="FULL" test-coverage="TESTED">
+      <title>URL decorator not applied to search endpoints (e.g., immich_searchassets) and bulk array responses</title>
+      <description>Extended _should_decorate_response() to detect all relevant search, browse, and collection endpoints (/search/*, /cine, /explore, /memories, /map, /duplicates, /statistics, /timelines, and bulk endpoints /assets, /albums, /people, /places). Added _extract_decoratable_array() helper to detect and extract decoratable arrays from nested response structures (supports results, data, items, assets, albums, people, places, photos, memories, timelines, statistics wrapper fields). Updated _decorate_response() to handle both direct arrays and wrapped arrays, preserving original response structure while decorating items. Added 22 comprehensive tests covering wrapped arrays (results, data, assets, items fields), paginated responses, endpoint detection for all known array endpoints, and metadata preservation in wrapped responses. All 160 tests pass with no regressions.</description>
+      <files>
+        <file>claw2immich/tooling.py</file>
+        <file>tests/test_url_decoration.py</file>
+      </files>
+    </feature>
+    <feature id="CF-47" completed="2026-02-19" source-item="47" completeness="FULL" test-coverage="TESTED">
+      <title>Extend URL decoration in _decorate_response to handle response arrays with IMAGE/VIDEO type fields</title>
+      <description>Extended _should_decorate_response() to detect array endpoints (/search/*, /assets, /albums, /people, /places) and return url_type='array' for auto-detection. Added new _detect_response_type() helper function to identify URL type based on "type": "IMAGE"/"VIDEO"/"MEMORY"/"ALBUM"/"PERSON"/"PLACE" fields or ID field names. Created _decorate_single_item() helper to process individual items with proper type detection and ID extraction. Enhanced _decorate_response() to handle both single objects and arrays of items, applying decoration to each array element while preserving structure. Added 23 new comprehensive tests covering array responses with IMAGE/VIDEO types, mixed-type arrays, empty arrays, items without IDs, non-dict items, and full backward compatibility verification. All 138 tests pass with no regressions.</description>
+      <files>
+        <file>claw2immich/tooling.py</file>
+        <file>tests/test_url_decoration.py</file>
+      </files>
+    </feature>
+    <feature id="CF-46" completed="2026-02-19" source-item="46" completeness="FULL" test-coverage="TESTED">
+      <title>Add IMMICH_EXTERNAL_DOMAIN parameter to docker-compose and include externalDomain-based URLs in tool responses</title>
+      <description>Implemented configurable IMMICH_EXTERNAL_DOMAIN support with automatic URL decoration in tool responses. Added get_external_domain() to config.py for reading env var (with validation). Created helper functions for detecting decoratable endpoints and extracting IDs. Updated _register_openapi_tools to pass external_domain to _make_tool and decorate asset/album/person/place responses with web_url field. Updated mcp_app.py to check configured domain first before discovering from server. Updated constants.py build_server_instructions to document the new env var. Updated docker-compose.yaml with commented example. Added 45+ test cases covering config, URL detection, ID extraction, and response decoration. Updated README and usage-guide.md documentation. All code passes syntax validation.</description>
+      <files>
+        <file>claw2immich/config.py</file>
+        <file>claw2immich/mcp_app.py</file>
+        <file>claw2immich/tooling.py</file>
+        <file>claw2immich/constants.py</file>
+        <file>docker-compose.yaml</file>
+        <file>README.md</file>
+        <file>docs/usage-guide.md</file>
+        <file>tests/test_config.py</file>
+        <file>tests/test_url_decoration.py</file>
+        <file>ai-docs/overview-features-bugs.xml</file>
+      </files>
+    </feature>
   </completed-features>
-
   <completed-utilities>
     <utility>
       <title>Helper utilities for development and maintenance</title>
@@ -416,7 +603,6 @@
       </files>
     </utility>
   </completed-utilities>
-
   <lessons-learned>
     <note date="2026-02-16">Keep architecture notes and file mappings current after refactors to prevent drift and stale XML structure.</note>
     <note date="2026-02-17">Regular update scans verify XMLs match codebase reality and catch orphaned items or new features; helper utilities don't need feature tracking as they're dev-only tools.</note>
