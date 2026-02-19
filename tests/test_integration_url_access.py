@@ -224,6 +224,14 @@ class IntegrationUrlAccessTests(unittest.TestCase):
             f"Asset web_url has unexpected pattern: {web_url}",
         )
 
+        person_id = first.get("personId")
+        if isinstance(person_id, str) and person_id:
+            self.assertNotRegex(
+                web_url,
+                rf".*/photos/{re.escape(person_id)}$",
+                f"Asset web_url incorrectly uses person UUID instead of asset UUID: {web_url}",
+            )
+
         self._assert_web_url_accessible(web_url)
 
     def test_album_web_url_accessible(self) -> None:

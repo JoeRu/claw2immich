@@ -333,3 +333,31 @@ def test_get_external_domain_fallback_normalizes_trailing_slash():
         assert result == "https://immich.example.com"
     finally:
         os.environ.pop("IMMICH_EXTERNAL_DOMAIN", None)
+
+
+def test_get_download_asset_delivery_mode_default():
+    os.environ.pop("IMMICH_DOWNLOAD_ASSET_DELIVERY", None)
+    from claw2immich.config import get_download_asset_delivery_mode
+
+    assert get_download_asset_delivery_mode() == "inline_base64"
+
+
+def test_get_download_asset_delivery_mode_valid_values():
+    from claw2immich.config import get_download_asset_delivery_mode
+
+    os.environ["IMMICH_DOWNLOAD_ASSET_DELIVERY"] = "immich_link"
+    try:
+        assert get_download_asset_delivery_mode() == "immich_link"
+    finally:
+        os.environ.pop("IMMICH_DOWNLOAD_ASSET_DELIVERY", None)
+
+
+def test_get_download_asset_delivery_mode_invalid_value():
+    from claw2immich.config import get_download_asset_delivery_mode
+
+    os.environ["IMMICH_DOWNLOAD_ASSET_DELIVERY"] = "invalid"
+    try:
+        with pytest.raises(ValueError, match="IMMICH_DOWNLOAD_ASSET_DELIVERY"):
+            get_download_asset_delivery_mode()
+    finally:
+        os.environ.pop("IMMICH_DOWNLOAD_ASSET_DELIVERY", None)

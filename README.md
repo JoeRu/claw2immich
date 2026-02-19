@@ -16,7 +16,7 @@ claw2immich is a Python MCP (Model Context Protocol) server that exposes selecte
 - `tool_access_report`
 - `write_capability_report`
 - `get_current_user` (only when permitted by API key/token)
-- `downloadAsset` (only when API key/token is configured; returns original asset content as `base64` by default or `binary` bytes)
+- `downloadAsset` (only when API key/token is configured; returns transport-safe `base64` payloads and supports optional `immich_link` delivery mode)
 
 All OpenAPI endpoints are exposed as tools named `immich_<operation>` or `immich_<method>_<path>`.
 Tools are filtered based on auth presence, admin-only markers, and write capability probes (default `POST /api/assets`).
@@ -37,7 +37,7 @@ OpenAPI tool parameters use explicit, prefixed fields so MCP clients can discove
 
 Legacy fields `path_params`, `query_params`, `headers`, and `json_body` are still accepted for compatibility.
 
-`downloadAsset` is intended for clients that cannot access the Immich API key directly. The MCP server performs the authenticated download and returns payload data plus metadata (`content_type`, `size_bytes`, optional `filename`).
+`downloadAsset` is intended for clients that cannot access the Immich API key directly. The MCP server performs the authenticated download and returns payload data plus metadata (`content_type`, `size_bytes`, optional `filename`). For MCP JSON safety, payloads are base64-encoded; optional delivery mode `IMMICH_DOWNLOAD_ASSET_DELIVERY=immich_link` returns a direct Immich download URL instead of inline payload bytes.
 
 ## MCP documentation surfaces
 - Server instructions are sent during initialize. Use them as the short on-ramp and point to the usage guide resource.
@@ -54,6 +54,7 @@ Environment variables:
 - `IMMICH_PROFILE` (optional: `read_only`, `read_write`, or `full_scope`)
 - `IMMICH_WRITE_PROBE_PATH` (default `/api/assets`)
 - `IMMICH_WRITE_PROBE_METHOD` (default `POST`)
+- `IMMICH_DOWNLOAD_ASSET_DELIVERY` (optional: `inline_base64` (default) or `immich_link`)
 
 MCP server environment variables:
 - `MCP_TRANSPORT` (`stdio`, `sse`, or `streamable-http`; default `stdio`)
@@ -197,6 +198,20 @@ When `IMMICH_PROFILE` is not set, tool filtering relies solely on capability pro
 ```
 python main.py
 ```
+
+## Helper script: Smart Search CLI
+
+For quick local debugging without MCP client setup, use the helper script:
+
+```sh
+python helper/smart_search_cli.py --list-envs
+python helper/smart_search_cli.py --env .env --query "golden retriever on beach" --size 25 --order desc
+```
+
+Behavior:
+- Lists available `.env` files in the current directory (`.env`, `.env_*`).
+- Loads `IMMICH_BASE_URL` and `IMMICH_API_KEY` or `IMMICH_API_TOKEN` from the selected env file.
+- Calls `POST /api/search/smart` and prints the JSON response directly to stdout.
 
 ## Tests
 Integration tests use the standard library `unittest` runner (pytest can also discover them).

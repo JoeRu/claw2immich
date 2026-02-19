@@ -42,7 +42,7 @@ Descriptions are enriched with:
 - `example:` short call sketch when required inputs exist
 - `returns:` response schema title and key fields when available
 
-When you need a capability, search for a tool by description. Example: look for a tool whose description begins with `GET /api/assets/{id}` when you need an asset by id.
+When possible, call known tool names directly (for example `immich_getassetbyid`, `immich_searchassets`, `immich_searchsmart`) and use `inputSchema` only to confirm required fields.
 
 ### Parameter Naming
 OpenAPI tool parameters are exposed as explicit fields:
@@ -111,11 +111,11 @@ Example instructions string:
 These examples use tool descriptions and parameter prefixes rather than hard-coded tool names.
 
 ### Get an Image (Asset by ID)
-1. List tools and locate the one whose description starts with `GET /api/assets/{id}`.
-2. Call the tool with `path_id` set to the asset id.
+1. Call `immich_getassetbyid`.
+2. Set `path_id` to the asset id.
 
 Example call:
-- Tool: description `GET /api/assets/{id}`
+- Tool: `immich_getassetbyid`
 - Args: `{ "path_id": "<asset-id>" }`
 
 ### Download Original Asset File (Base64/Binary)
@@ -124,7 +124,10 @@ Use `downloadAsset` when the MCP client needs file content but does not have dir
 1. Call `downloadAsset` with `asset_id`.
 2. Optional: set `output`:
   - `base64` (default) for safe transport as text.
-  - `binary` to receive raw bytes.
+  - `binary` request mode is accepted but returns base64 payload for transport safety.
+3. Choose delivery strategy via `IMMICH_DOWNLOAD_ASSET_DELIVERY` on server side:
+   - `inline_base64` (default): server fetches bytes and returns base64 payload through MCP.
+   - `immich_link`: server returns a direct Immich download URL (`/api/assets/{id}/original`) instead of payload bytes.
 3. Read `content_type`, `size_bytes`, and optional `filename` from the response metadata.
 
 Example calls:
@@ -133,67 +136,67 @@ Example calls:
 - Args: `{ "asset_id": "<asset-id>", "output": "binary" }`
 
 ### Find a Person
-1. Look for tools with descriptions containing `people`, `person`, or `faces` (for example `GET /api/people` or `POST /api/people/search`).
-2. If the tool accepts a query, pass `query_<field>` or `body` based on the `inputSchema`.
+1. Use `immich_searchperson` when available for direct name matching.
+2. Otherwise use `immich_getallpeople` and filter by name client-side.
 
 Example call:
-- Tool: description contains `people/search`
-- Args: `{ "body": { "name": "Ada" } }`
+- Tool: `immich_searchperson`
+- Args: `{ "query_name": "Ada" }`
 
 ### Find a Location
-1. Look for tools with descriptions containing `locations` or `map` (for example `GET /api/locations` or `POST /api/search/metadata`).
-2. Provide query or body fields for the location name or bounding box.
+1. Use `immich_getmapmarkers` for map/location discovery.
+2. Use `immich_searchassets` for location-related asset retrieval.
 
 Example call:
-- Tool: description contains `locations/search`
-- Args: `{ "query_name": "Seattle" }`
+- Tool: `immich_searchassets`
+- Args: `{ "body_query": "Seattle" }`
 
 ### Get the Newest Photo
-1. Look for a tool that lists assets (for example `GET /api/assets` or `GET /api/search`).
-2. Use query parameters for sorting or filtering by date if available (check `inputSchema`).
+1. Use `immich_searchassets`.
+2. Set ordering and page size explicitly.
 
 Example call:
-- Tool: description contains `assets`
-- Args: `{ "query_sort": "desc", "query_take": 1 }`
+- Tool: `immich_searchassets`
+- Args: `{ "query_order": "desc", "body_size": 1 }`
 
 ### Search Assets (searchAssets)
-1. Look for a tool whose description starts with `POST /api/search/assets`.
-2. Use `inputSchema` to decide whether to pass `query_` fields or a JSON `body`.
-3. Provide the search text and any filters in the required fields.
+1. Use tool `immich_searchassets`.
+2. Pass query/body fields directly.
+3. Use `inputSchema` only for field validation.
 
 Example call:
-- Tool: description `POST /api/search/assets`
-- Args: `{ "body": { "query": "mountain", "page": 1 } }`
+- Tool: `immich_searchassets`
+- Args: `{ "body_query": "mountain", "body_page": 1 }`
 
 ### Smart Search (searchSmart)
-1. Look for a tool whose description starts with `POST /api/search/smart`.
-2. Use `inputSchema` and pass the smart query in `body` when required.
-3. Combine with filters (dates, people, places) only if they appear in the schema.
+1. Use tool `immich_searchsmart`.
+2. Pass the natural-language query in `body_query`.
+3. Add filters only when present in `inputSchema`.
 
 Example call:
-- Tool: description `POST /api/search/smart`
-- Args: `{ "body": { "query": "golden retriever" } }`
+- Tool: `immich_searchsmart`
+- Args: `{ "body_query": "golden retriever" }`
 
 ### Upload a Photo
-1. Look for tools with descriptions like `POST /api/assets` or `POST /api/assets/upload`.
-2. Inspect the `inputSchema` to determine whether to pass `body` or header metadata.
-3. Provide the required fields for upload as described by the schema.
+1. Use `immich_uploadasset` when available.
+2. Fill required upload fields from `inputSchema`.
+3. Send explicit `body_*` fields.
 
 Example call:
-- Tool: description contains `assets/upload`
-- Args: `{ "body": { "filename": "example.jpg", "deviceAssetId": "...", "assetData": "..." } }`
+- Tool: `immich_uploadasset`
+- Args: `{ "body_deviceAssetId": "...", "body_deviceId": "camera-1", "body_fileCreatedAt": "2026-01-01T10:00:00.000Z" }`
 
 ### Share an Album
-1. Find tools with descriptions like `POST /api/albums` (create) and `POST /api/albums/{id}/share` or `POST /api/albums/{id}/link`.
-2. Use `path_id` for the album id and pass share options via `body`.
+1. Use `immich_createalbumsharelink` (or album-share endpoint tool in your version).
+2. Use `path_id` plus explicit sharing options.
 
 Example call:
-- Tool: description contains `albums/{id}/share`
-- Args: `{ "path_id": "<album-id>", "body": { "allowDownload": true } }`
+- Tool: `immich_createalbumsharelink`
+- Args: `{ "path_id": "<album-id>", "body_allowDownload": true }`
 
 ## Tips
 - Always call `tool_access_report` first when permissions are uncertain.
 - Write tools only appear when your credentials allow `POST /api/assets` (use `write_capability_report` to see the reason).
-- Use tool descriptions to select the right tool without relying on exact names.
+- Prefer explicit tool names and argument templates; use descriptions only as fallback when names differ by Immich version.
 - Blocked tools now include specific HTTP status or network error reasons to help troubleshoot access issues.
 - Some search endpoints use `POST` but still require only read permissions; they should appear when the permission is read-only.

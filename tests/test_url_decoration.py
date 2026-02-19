@@ -47,13 +47,22 @@ def test_should_decorate_response_no_match():
     assert url_type is None
 
 
-def test_should_decorate_response_post_not_decorated():
-    """Test _should_decorate_response only decorates GET methods."""
+def test_should_decorate_response_post_non_search_not_decorated():
+    """Test _should_decorate_response does not decorate non-search POST methods."""
     from claw2immich.tooling import _should_decorate_response
     
     result, url_type = _should_decorate_response("POST", "/assets/{id}")
     assert result is False
     assert url_type is None
+
+
+def test_should_decorate_response_post_search_decorated():
+    """Test _should_decorate_response decorates POST search endpoints."""
+    from claw2immich.tooling import _should_decorate_response
+
+    result, url_type = _should_decorate_response("POST", "/search/assets")
+    assert result is True
+    assert url_type == "array"
 
 
 def test_extract_single_id_with_id_field():
@@ -415,6 +424,48 @@ def test_decorate_response_array_skip_items_without_id():
     assert "web_url" in decorated[0]
     assert "web_url" not in decorated[1]  # Skipped due to no ID
     assert "web_url" in decorated[2]
+
+
+def test_decorate_response_asset_uses_assetid_over_personid():
+    """Asset decoration should use asset UUID, not person UUID fields."""
+    from claw2immich.tooling import _decorate_response
+
+    response = {
+        "assetId": "asset-123",
+        "personId": "person-999",
+        "type": "IMAGE",
+        "name": "Tagged photo",
+    }
+
+    decorated = _decorate_response(response, "https://immich.example.com", "array")
+    assert decorated["web_url"] == "https://immich.example.com/photos/asset-123"
+
+
+def test_decorate_response_asset_ignores_personid_when_id_present():
+    """Asset decoration should use id and never fall back to personId for /photos URLs."""
+    from claw2immich.tooling import _decorate_response
+
+    response = {
+        "id": "asset-456",
+        "personId": "person-123",
+        "type": "IMAGE",
+    }
+
+    decorated = _decorate_response(response, "https://immich.example.com", "array")
+    assert decorated["web_url"] == "https://immich.example.com/photos/asset-456"
+
+
+def test_decorate_response_asset_without_asset_id_skips_personid():
+    """Asset decoration should not build /photos URL from personId when asset ID is missing."""
+    from claw2immich.tooling import _decorate_response
+
+    response = {
+        "personId": "person-123",
+        "type": "IMAGE",
+    }
+
+    decorated = _decorate_response(response, "https://immich.example.com", "array")
+    assert "web_url" not in decorated
 
 
 def test_decorate_response_array_non_dict_items():

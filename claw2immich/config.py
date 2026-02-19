@@ -115,3 +115,15 @@ def profile_allows_admin(profile: str | None) -> bool:
     if profile is None:
         return True  # No profile restriction, rely on capability probes
     return profile == "full_scope"
+
+
+def get_download_asset_delivery_mode() -> str:
+    """Return delivery mode for downloadAsset payloads."""
+    mode = os.getenv("IMMICH_DOWNLOAD_ASSET_DELIVERY", "inline_base64").strip().lower()
+    valid_modes = {"inline_base64", "immich_link"}
+    if mode not in valid_modes:
+        raise ValueError(
+            "IMMICH_DOWNLOAD_ASSET_DELIVERY must be one of: "
+            f"{', '.join(sorted(valid_modes))}"
+        )
+    return mode

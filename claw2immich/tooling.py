@@ -15,6 +15,7 @@ from .config import (
     _get_config,
     get_profile,
     get_external_domain,
+    get_download_asset_delivery_mode,
     profile_allows_admin,
     profile_allows_write,
 )
@@ -53,7 +54,11 @@ def _should_decorate_response(method: str, path: str) -> tuple[bool, str | None]
         Tuple of (should_decorate, url_type) where url_type is 'asset', 'album', 'person', 'place', or None.
         For array endpoints (search, browse), returns 'array' to indicate special handling needed.
     """
-    if method != "GET":
+    method_upper = (method or "").upper()
+
+    if method_upper not in ("GET", "POST"):
+        return False, None
+    if method_upper == "POST" and not path.startswith("/search/"):
         return False, None
     
     # Single-entity endpoints with direct ID in path
@@ -113,6 +118,30 @@ def _extract_single_id(data: Any) -> str | None:
         if id_field in data and data[id_field]:
             return str(data[id_field])
     
+    return None
+
+
+def _extract_entity_id(data: Any, url_type: str) -> str | None:
+    """Extract an entity ID using URL-type-aware precedence."""
+    if not isinstance(data, dict):
+        return None
+
+    id_priority: tuple[str, ...]
+    if url_type == "asset":
+        # Prefer asset-specific identifiers and avoid personId leakage.
+        id_priority = ("assetId", "id")
+    elif url_type == "album":
+        id_priority = ("albumId", "id")
+    elif url_type == "person":
+        id_priority = ("personId", "id")
+    elif url_type == "place":
+        id_priority = ("placeId", "id")
+    else:
+        id_priority = ("id", "albumId", "personId", "placeId")
+
+    for id_field in id_priority:
+        if id_field in data and data[id_field]:
+            return str(data[id_field])
     return None
 
 
@@ -305,8 +334,8 @@ def _decorate_single_item(item: Any, external_domain: str, url_type: str) -> Any
     else:
         effective_url_type = url_type
     
-    # Extract ID from item
-    entity_id = _extract_single_id(item)
+    # Extract ID from item using URL-type-aware precedence
+    entity_id = _extract_entity_id(item, effective_url_type)
     if not entity_id:
         return item
     
@@ -533,11 +562,25 @@ def write_capability_report() -> dict[str, str | bool]:
 
 
 def download_asset(asset_id: str, output: str = "base64") -> dict[str, Any]:
-    """Download an asset file and return it as base64 (default) or binary bytes."""
+    """Download an asset file and return a JSON-safe payload (base64)."""
     try:
         mode = (output or "base64").strip().lower()
         if mode not in ("base64", "binary"):
             raise ValueError("output must be 'base64' or 'binary'")
+
+        delivery_mode = get_download_asset_delivery_mode()
+        if delivery_mode == "immich_link":
+            config = _get_config()
+            return {
+                "asset_id": asset_id,
+                "delivery_mode": "immich_link",
+                "download_url": f"{config['base_url']}/api/assets/{asset_id}/original",
+                "requires_auth": True,
+                "note": (
+                    "Client must authenticate directly against Immich when using immich_link mode. "
+                    "Use inline_base64 mode when direct Immich credentials are unavailable."
+                ),
+            }
 
         content, response_headers = _request_bytes(
             "GET",
@@ -551,19 +594,22 @@ def download_asset(asset_id: str, output: str = "base64") -> dict[str, Any]:
         )
         filename = filename_match.group(1) if filename_match else None
 
-        payload: str | bytes
-        if mode == "base64":
-            payload = base64.b64encode(content).decode("ascii")
-        else:
-            payload = content
+        payload = base64.b64encode(content).decode("ascii")
 
         result: dict[str, Any] = {
             "asset_id": asset_id,
-            "output": mode,
+            "delivery_mode": "inline_base64",
+            "output": "base64",
+            "requested_output": mode,
+            "encoding": "base64",
             "content_type": content_type,
             "size_bytes": len(content),
             "data": payload,
         }
+        if mode == "binary":
+            result[
+                "warning"
+            ] = "Raw binary output is disabled for MCP JSON transport safety. Returned base64 instead."
         if filename:
             result["filename"] = filename
         return result

@@ -85,6 +85,34 @@ class TestRequest(unittest.TestCase):
 
     @patch("claw2immich.http_client._get_config")
     @patch("claw2immich.http_client.httpx.Client")
+    def test_request_success_binary_wrapped_base64(
+        self,
+        mock_client_class,
+        mock_get_config,
+    ):
+        mock_get_config.return_value = {
+            "base_url": "http://localhost",
+            "api_key": "test-key",
+            "api_token": None,
+        }
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.headers = {"content-type": "image/jpeg"}
+        mock_response.content = b"\x00\x01\x02"
+        mock_client = MagicMock()
+        mock_client.request.return_value = mock_response
+        mock_client.__enter__ = MagicMock(return_value=mock_client)
+        mock_client.__exit__ = MagicMock(return_value=False)
+        mock_client_class.return_value = mock_client
+
+        result = _request("GET", "/api/test")
+        self.assertEqual(result["encoding"], "base64")
+        self.assertEqual(result["content_type"], "image/jpeg")
+        self.assertEqual(result["size_bytes"], 3)
+        self.assertEqual(result["data"], "AAEC")
+
+    @patch("claw2immich.http_client._get_config")
+    @patch("claw2immich.http_client.httpx.Client")
     def test_request_http_status_error(self, mock_client_class, mock_get_config):
         mock_get_config.return_value = {
             "base_url": "http://localhost",

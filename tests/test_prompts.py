@@ -50,3 +50,38 @@ def test_all_prompts_have_descriptions():
         title = prompt_kwargs.get("title", "<no title>")
         desc = prompt_kwargs.get("description", "")
         assert desc, f"Prompt '{title}' has an empty description"
+
+
+def test_prompt_messages_use_explicit_tool_names():
+    """Ensure key prompts provide concrete tool names and argument examples."""
+    from claw2immich.prompts import register_prompts_and_resources
+
+    registered_prompts = {}
+
+    class FakeMCP:
+        def resource(self, *args, **kwargs):
+            def decorator(fn):
+                return fn
+            return decorator
+
+        def prompt(self, *args, **kwargs):
+            def decorator(fn):
+                title = kwargs.get("title")
+                registered_prompts[title] = fn
+                return fn
+            return decorator
+
+    fake = FakeMCP()
+    register_prompts_and_resources(fake)
+
+    search_assets_msg = registered_prompts["Immich: Search assets"]("mountain")
+    assert "immich_searchassets" in search_assets_msg
+    assert "Example args" in search_assets_msg
+
+    smart_msg = registered_prompts["Immich: Smart search"]("dog")
+    assert "immich_searchsmart" in smart_msg
+    assert "body_query" in smart_msg
+
+    get_image_msg = registered_prompts["Immich: Get image"]("asset-1")
+    assert "immich_getassetbyid" in get_image_msg
+    assert "path_id" in get_image_msg

@@ -1,5 +1,6 @@
 import logging
 import os
+import base64
 from typing import Any
 
 import httpx
@@ -8,6 +9,23 @@ from .config import _get_config
 from .constants import DEFAULT_TIMEOUT
 
 logger = logging.getLogger(__name__)
+
+
+_TEXT_CONTENT_TYPE_TOKENS = (
+    "text/",
+    "application/json",
+    "application/problem+json",
+    "application/xml",
+    "application/xhtml+xml",
+    "application/javascript",
+)
+
+
+def _is_textual_content_type(content_type: str) -> bool:
+    lowered = (content_type or "").lower()
+    if any(token in lowered for token in _TEXT_CONTENT_TYPE_TOKENS):
+        return True
+    return "charset=" in lowered
 
 
 class ImmichError(Exception):
@@ -105,7 +123,16 @@ def _request(
     content_type = response.headers.get("content-type", "")
     if "application/json" in content_type:
         return response.json()
-    return response.text
+    if _is_textual_content_type(content_type):
+        return response.text
+
+    payload_b64 = base64.b64encode(response.content).decode("ascii")
+    return {
+        "encoding": "base64",
+        "content_type": content_type or "application/octet-stream",
+        "size_bytes": len(response.content),
+        "data": payload_b64,
+    }
 
 
 def _request_bytes(

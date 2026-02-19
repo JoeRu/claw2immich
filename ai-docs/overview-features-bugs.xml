@@ -434,17 +434,18 @@
       </r>
     </item>
 
-    <item id="51" type="feature" status="PENDING" priority="MEDIUM" complexity="M" security="false">
-      <title>Add downloadAsset tool returning asset file content as base64 or binary</title>
+    <item id="51" type="feature" status="DONE" priority="MEDIUM" complexity="M" security="false">
+      <title>Add downloadAsset tool with JSON-safe base64 and configurable link delivery</title>
       <branch>feature/item-51-downloadasset-tool-binary-base64</branch>
       <depends-on></depends-on>
-      <justification>The MCP client does not have direct access to the Immich API key, but still needs to retrieve original image/video bytes for downstream processing. A dedicated downloadAsset MCP tool allows secure server-side authenticated download while returning payload content to the client in either base64 (default, transport-safe) or binary mode.</justification>
+      <justification>The MCP client does not have direct access to the Immich API key, but still needs to retrieve original image/video bytes for downstream processing. A dedicated downloadAsset MCP tool should provide transport-safe payload delivery and avoid raw-byte corruption in MCP JSON channels. The implementation aligns with item 53 by supporting JSON-safe base64 delivery and a configurable direct-link mode.</justification>
 
       <tasks>
         <task id="51.1">Add binary HTTP request helper in http_client.py that preserves raw response bytes and headers while reusing existing auth/error handling patterns.</task>
-        <task id="51.2">Implement downloadAsset tool in tooling.py with required asset_id and optional output parameter (`base64` default, `binary` optional).</task>
+        <task id="51.2">Implement downloadAsset tool in tooling.py with required asset_id and optional output parameter (`base64` default; `binary` request accepted but returned safely as base64 for MCP transport).</task>
         <task id="51.3">Register the tool with explicit MCP name `downloadAsset` and include it in tool_access_report with auth-aware availability/blocked reason.</task>
-        <task id="51.4">Return structured metadata (content_type, size_bytes, optional filename) together with payload data.</task>
+        <task id="51.4">Return structured metadata (content_type, size_bytes, optional filename) together with payload data and encoding marker.</task>
+        <task id="51.8">Add delivery mode configuration (`IMMICH_DOWNLOAD_ASSET_DELIVERY`) to support `inline_base64` and `immich_link` behavior.</task>
         <task id="51.5">Update docs/usage-guide.md with a concrete downloadAsset workflow example for clients without API key access.</task>
         <task id="51.6">Update prompts.py to include a dedicated downloadAsset prompt use case.</task>
         <task id="51.7">Add unit tests for base64 default behavior, binary mode, invalid output handling, and raw-byte request helper.</task>
@@ -458,8 +459,9 @@
         </tests>
         <manual-steps>
           <step order="1">Call `downloadAsset` with only `asset_id` and verify `output` is `base64` and payload decodes to valid file bytes.</step>
-          <step order="2">Call `downloadAsset` with `output=binary` and verify raw byte payload is returned.</step>
+          <step order="2">Call `downloadAsset` with `output=binary` and verify MCP-safe base64 payload is returned with warning/metadata instead of raw bytes.</step>
           <step order="3">Call `tool_access_report` without credentials and verify `downloadAsset` appears in blocked_tools with missing auth reason.</step>
+          <step order="4">Set `IMMICH_DOWNLOAD_ASSET_DELIVERY=immich_link` and verify response returns a direct Immich download URL and delivery metadata.</step>
         </manual-steps>
       </verification>
 
@@ -469,13 +471,327 @@
           <item-ref id="CF-11">Add MCP usage guide with server instructions and workflow examples</item-ref>
           <item-ref id="CF-24">Add searchAssets/searchSmart guidance to prompts</item-ref>
         </affected-items>
-        <notes>Affected completed features are FULL and TESTED; no impact warning for incomplete completeness/test coverage is required. Main risk is payload size for large original files, mitigated by explicit output mode and metadata.</notes>
+        <notes>Affected completed features are FULL and TESTED; no impact warning for incomplete completeness/test coverage is required. Main risks are transport limits and binary serialization safety, mitigated by base64 wrapping and configurable link-delivery mode.</notes>
       </impact-check>
+      <r>
+        <outcome>DONE</outcome>
+        <observations>Item 51 is implemented and aligned with item 53 strategy: downloadAsset now returns JSON-safe base64 payloads for MCP transport, accepts binary request mode without emitting raw bytes, and supports delivery strategy selection via IMMICH_DOWNLOAD_ASSET_DELIVERY (`inline_base64` or `immich_link`). Tests were extended for delivery mode config, link mode, and binary-safe behavior.</observations>
+        <lessons-learned>Binary-capable MCP tools should define transport-safe payload contracts early (encoding + metadata) and separate delivery strategy (inline payload vs external link) behind explicit configuration.</lessons-learned>
+        <files>
+          <file>claw2immich/config.py</file>
+          <file>claw2immich/http_client.py</file>
+          <file>claw2immich/tooling.py</file>
+          <file>docs/usage-guide.md</file>
+          <file>tests/test_config.py</file>
+          <file>tests/test_download_asset.py</file>
+          <file>tests/test_http_client.py</file>
+        </files>
+      </r>
+    </item>
+
+    <item id="52" type="bug" status="DONE" priority="HIGH" complexity="M" security="false">
+      <title>Regression: web_url missing in immich_searchassets and immich_searchsmart item results</title>
+      <branch>bug/item-52-regression-web-url-missing-search</branch>
+      <depends-on>50</depends-on>
+      <justification>Clients report that `web_url` is not present on item-level search results returned by immich_searchassets and immich_searchsmart. This breaks click-through navigation workflows introduced by URL decoration work (items 46-50) and forces clients to reconstruct URLs manually. Since these endpoints were previously covered by decoration logic, this is treated as a regression until proven otherwise.</justification>
+
+      <tasks>
+        <task id="52.1">Reproduce with a live Immich server by calling immich_searchassets and immich_searchsmart and capturing raw response shapes (top-level and nested item arrays).</task>
+        <task id="52.2">Trace decoration flow in tooling.py (_should_decorate_response, _extract_decoratable_array, _decorate_response, _decorate_single_item) for both endpoints.</task>
+        <task id="52.3">Fix endpoint/shape detection so all decoratable search result items receive `web_url` while preserving existing response structure.</task>
+        <task id="52.4">Add/extend unit tests covering immich_searchassets and immich_searchsmart variants (empty results, wrapped arrays, mixed entity types) to assert item-level `web_url` presence.</task>
+        <task id="52.5">Run focused tests for URL decoration and integration URL access to ensure no regressions for assets, albums, people, and places.</task>
+      </tasks>
+
+      <verification>
+        <tests>
+          <test type="unit">pytest tests/test_url_decoration.py -v</test>
+          <test type="integration">pytest tests/test_integration_url_access.py -v</test>
+        </tests>
+        <manual-steps>
+          <step order="1">Call immich_searchassets and verify each returned asset item includes `web_url` with /photos/{id} pattern.</step>
+          <step order="2">Call immich_searchsmart and verify returned items include item-level `web_url` fields with correct URL type mapping.</step>
+          <step order="3">Confirm non-search endpoints that were already decorated (asset/album/person/place reads) remain unchanged.</step>
+        </manual-steps>
+      </verification>
+
+      <impact-check>
+        <affected-items>
+          <item-ref id="50">Integration test: verify web_url accessibility for all URL types (items 46–49)</item-ref>
+          <item-ref id="49">Person objects decorated with /photos/{id} instead of /people/{id} URLs</item-ref>
+          <item-ref id="48">URL decorator not applied to search endpoints (e.g., immich_searchassets) and bulk array responses</item-ref>
+          <item-ref id="CF-23">searchAssets/searchSmart missing and 400 errors in tool_access_report</item-ref>
+        </affected-items>
+        <notes>Impact check result: referenced completed features/items are marked FULL and TESTED in current docs; no additional warning for incomplete completeness or NONE test-coverage is required. Primary risk is reintroducing incorrect type inference or partial decoration in nested search response shapes.</notes>
+      </impact-check>
+      <r>
+        <outcome>DONE</outcome>
+        <observations>Root cause was method gating in _should_decorate_response(): search endpoints are POST in Immich but decoration was restricted to GET. Updated logic to allow POST decoration for /search/* while keeping non-search POST endpoints undecorated. Added regression tests for POST search decoration behavior.</observations>
+        <lessons-learned>Read-only POST endpoints (especially search APIs) need explicit handling in decorators and capability checks; HTTP method alone is not a reliable proxy for mutability in Immich APIs.</lessons-learned>
+        <files>
+          <file>claw2immich/tooling.py</file>
+          <file>tests/test_url_decoration.py</file>
+        </files>
+      </r>
+    </item>
+
+    <item id="53" type="refactoring" status="DONE" priority="MEDIUM" complexity="M" security="false">
+      <title>Refactor downloadAsset delivery for MCP payload limits (REST endpoint vs temporary Immich link)</title>
+      <branch>refactoring/item-53-refactor-downloadasset-delivery-mcp-payload</branch>
+      <depends-on>51</depends-on>
+      <justification>Large binary/base64 payloads from downloadAsset can exceed practical MCP transport limits (reported around 64 KB), causing truncated responses or failed tool calls. Instead of returning full file bytes via MCP, the server should provide a scalable delivery strategy. Two candidate approaches must be evaluated: (A) expose a dedicated authenticated REST download endpoint on the MCP server, or (B) return a short-lived download URL from Immich (or an MCP-proxied signed URL) and let the client download directly. This refactoring focuses on validating the limit, comparing options, and providing a clear implementation recommendation.</justification>
+
+      <tasks>
+        <task id="53.1">Reproduce and document the effective MCP payload ceiling by testing downloadAsset with representative file sizes (small/medium/large) across configured transports (stdio/SSE/streamable HTTP where applicable).</task>
+        <task id="53.2">Define acceptance criteria for download delivery: reliability, auth model, TTL/expiry behavior, compatibility with MCP clients, and observability/error handling.</task>
+        <task id="53.3">Option A analysis: design an MCP-server REST endpoint for downloads (request/response contract, auth enforcement, rate limits, streaming behavior, and deployment implications).</task>
+        <task id="53.4">Option B analysis: evaluate generating short-lived Immich or proxy-issued download links (security, expiry guarantees, required Immich capabilities, and client UX).</task>
+        <task id="53.5">Produce a decision matrix with trade-offs (complexity, security, performance, portability, backward compatibility) and select a recommended default path.</task>
+        <task id="53.6">Implement the selected path behind a feature flag/config toggle, keep existing downloadAsset behavior as fallback during migration, and add migration notes in docs.</task>
+        <task id="53.7">Add automated tests validating large-file handling path, token/link expiry behavior, auth failures, and non-regression for existing downloadAsset callers.</task>
+      </tasks>
+
+      <verification>
+        <tests>
+          <test type="unit">pytest tests/test_download_asset.py -v</test>
+          <test type="unit">pytest tests/test_mcp_app.py -v</test>
+          <test type="integration">pytest tests/test_integration_url_access.py -v</test>
+        </tests>
+        <manual-steps>
+          <step order="1">Run a download request for a payload clearly above 64 KB and verify the selected delivery path completes without MCP truncation.</step>
+          <step order="2">Validate expired/invalid links or tokens are rejected with clear error responses and no secret leakage.</step>
+          <step order="3">Confirm users receive explicit decision options in docs/prompts (REST endpoint mode vs temporary-link mode), including when each should be chosen.</step>
+        </manual-steps>
+      </verification>
+
+      <impact-check>
+        <affected-items>
+          <item-ref id="51">Add downloadAsset tool returning asset file content as base64 or binary</item-ref>
+          <item-ref id="CF-1">Implement MCP server for Immich REST API</item-ref>
+          <item-ref id="CF-6">Add env-driven MCP server transport configuration</item-ref>
+          <item-ref id="CF-11">Add MCP usage guide with server instructions and workflow examples</item-ref>
+        </affected-items>
+        <notes>Impact check: CF-1/CF-6/CF-11 are FULL and TESTED. Coordination warning: item 51 is still PENDING, so this refactoring should either absorb or supersede item 51 implementation details to avoid duplicate work and conflicting download behavior.</notes>
+      </impact-check>
+      <r>
+        <outcome>DONE</outcome>
+        <observations>Implemented a practical delivery strategy toggle for downloadAsset via IMMICH_DOWNLOAD_ASSET_DELIVERY: inline_base64 (default) and immich_link (returns authenticated Immich download URL metadata). This provides user-visible decision options without requiring a custom MCP REST route. Updated usage guide and tests for mode validation and link-mode behavior.</observations>
+        <lessons-learned>For MCP transports, introducing explicit delivery-mode configuration is a low-risk way to support different client capabilities while deferring heavier server-embedded endpoint work.</lessons-learned>
+        <files>
+          <file>claw2immich/config.py</file>
+          <file>claw2immich/tooling.py</file>
+          <file>docs/usage-guide.md</file>
+          <file>tests/test_config.py</file>
+          <file>tests/test_download_asset.py</file>
+        </files>
+      </r>
+    </item>
+
+    <item id="54" type="bug" status="DONE" priority="HIGH" complexity="M" security="false">
+      <title>Native binary endpoints return corrupted payload via UTF-8/JSON serialization (immich_downloadasset, immich_viewasset)</title>
+      <branch>bug/item-54-native-binary-endpoints-corrupted-payload</branch>
+      <depends-on></depends-on>
+      <justification>Native binary download/view endpoints can return bytes that are corrupted when passed through MCP JSON tool responses. Preliminary code inspection indicates the server correctly fetches raw bytes (`_request_bytes` uses `response.content`), but the tool layer may return raw `bytes` inside a dict (`download_asset` with `output='binary'`), which then gets serialized in JSON/MCP transport and can be UTF-8-encoded or otherwise transformed. We need to confirm whether corruption originates in our MCP endpoint serialization or already upstream from Immich endpoint behavior.</justification>
+
+      <tasks>
+        <task id="54.1">Reproduce corruption deterministically for immich_downloadasset and immich_viewasset using known binary fixtures and compare hashes against direct Immich downloads.</task>
+        <task id="54.2">Trace payload flow end-to-end (Immich response bytes → `_request`/`_request_bytes` → tool return object → MCP transport serialization) and identify the exact stage where bytes diverge.</task>
+        <task id="54.3">Validate whether `_request` (text path for non-JSON) is used by any binary OpenAPI endpoints and document impact on immich_viewasset/other native endpoints.</task>
+        <task id="54.4">Implement fix strategy: either enforce base64-wrapped output for all binary-capable tools or stop exposing raw-binary tool output through MCP JSON channels.</task>
+        <task id="54.5">Update tool schemas/descriptions to clearly declare binary-safe output format and deprecate unsafe raw-byte response modes if required.</task>
+        <task id="54.6">Add regression tests that verify byte-for-byte integrity (hash equality) between MCP-delivered payload and direct Immich payload for representative file types (jpg, png, mp4).</task>
+      </tasks>
+
+      <verification>
+        <tests>
+          <test type="unit">pytest tests/test_download_asset.py -v</test>
+          <test type="unit">pytest tests/test_http_client.py -v</test>
+          <test type="integration">pytest tests/test_mcp_client.py -v</test>
+        </tests>
+        <manual-steps>
+          <step order="1">Download the same asset via direct Immich endpoint and via MCP tool; compare SHA-256 digests and file openability.</step>
+          <step order="2">Confirm that tools no longer emit unsafe raw bytes in JSON responses (or are hidden/blocked if not supported safely).</step>
+          <step order="3">Verify user guidance states when payload is base64-wrapped and how to decode it safely.</step>
+        </manual-steps>
+      </verification>
+
+      <impact-check>
+        <affected-items>
+          <item-ref id="51">Add downloadAsset tool returning asset file content as base64 or binary</item-ref>
+          <item-ref id="53">Refactor downloadAsset delivery for MCP payload limits (REST endpoint vs temporary Immich link)</item-ref>
+          <item-ref id="CF-1">Implement MCP server for Immich REST API</item-ref>
+          <item-ref id="CF-11">Add MCP usage guide with server instructions and workflow examples</item-ref>
+        </affected-items>
+        <notes>Impact check: CF-1 and CF-11 are FULL and TESTED. Coordination warning: item 51 remains PENDING, so follow-up implementation should align with the new binary-safe/base64-or-link delivery behavior.</notes>
+      </impact-check>
+      <r>
+        <outcome>DONE</outcome>
+        <observations>Confirmed byte corruption risk at server serialization boundaries rather than Immich source bytes. Fixed by making non-text _request responses JSON-safe (base64 wrapper with metadata) and by removing raw-byte payload emission from downloadAsset; binary request mode now returns base64 plus warning/metadata. Added regression tests for binary wrapping in both http_client and downloadAsset paths.</observations>
+        <lessons-learned>Never return raw bytes inside MCP JSON tool responses; binary-safe envelopes (encoding + content_type + size + data) are required to preserve integrity across clients/transports.</lessons-learned>
+        <files>
+          <file>claw2immich/http_client.py</file>
+          <file>claw2immich/tooling.py</file>
+          <file>docs/usage-guide.md</file>
+          <file>tests/test_http_client.py</file>
+          <file>tests/test_download_asset.py</file>
+        </files>
+      </r>
+    </item>
+
+    <item id="55" type="refactoring" status="DONE" priority="MEDIUM" complexity="M" security="false">
+      <title>Make MCP prompts concrete with explicit tool names and argument templates</title>
+      <branch>refactoring/item-55-make-mcp-prompts-concrete-explicit</branch>
+      <depends-on></depends-on>
+      <justification>Several prompt messages still use generic guidance such as "locate a tool by description" even though the server already exposes stable tool names. This adds unnecessary client-side tool discovery steps and reduces reliability. Prompts should prefer direct tool invocation guidance (exact tool name + concrete argument examples) so clients can execute faster and with fewer mistakes.</justification>
+
+      <tasks>
+        <task id="55.1">Audit all prompt templates in prompts.py and list prompt texts that instruct clients to search/locate tools instead of calling known tool names directly.</task>
+        <task id="55.2">Refactor affected prompt texts to include explicit tool names (e.g., immich_searchassets, immich_searchsmart) and concrete argument patterns using current parameter names.</task>
+        <task id="55.3">Add at least one realistic, copy-ready argument example per affected prompt (including required and common optional arguments).</task>
+        <task id="55.4">Ensure prompt instructions remain robust for tool alias/version drift by including a short fallback note only where necessary, without reverting to generic discovery-first wording.</task>
+        <task id="55.5">Update tests/test_prompts.py to validate prompt content includes explicit tool names and key argument hints for the affected workflows.</task>
+        <task id="55.6">Review docs/usage-guide.md for consistency with the new direct-invocation prompt style.</task>
+      </tasks>
+
+      <verification>
+        <tests>
+          <test type="unit">pytest tests/test_prompts.py -v</test>
+          <test type="unit">pytest tests/test_instructions.py -v</test>
+        </tests>
+        <manual-steps>
+          <step order="1">List prompts and inspect text for affected workflows; verify each names the intended tool directly.</step>
+          <step order="2">Execute one prompt-driven workflow and confirm the client can call the tool without an additional search step.</step>
+          <step order="3">Verify provided argument templates match current exposed tool schema names.</step>
+        </manual-steps>
+      </verification>
+
+      <impact-check>
+        <affected-items>
+          <item-ref id="CF-11">Add MCP usage guide with server instructions and workflow examples</item-ref>
+          <item-ref id="CF-12">Enrich OpenAPI tool descriptions with parameter summaries and response hints</item-ref>
+          <item-ref id="24">Add searchAssets/searchSmart guidance to prompts</item-ref>
+          <item-ref id="41">Add description text to all 8 MCP prompts</item-ref>
+          <item-ref id="45">Add prompt example for multi-person image search using immich_searchassets</item-ref>
+        </affected-items>
+        <notes>Impact check: CF-11 and CF-12 are FULL and TESTED. Related completed prompt items (24, 41, 45) are DONE and already test-backed; no missing-test or incomplete-mapping warning identified for this refactoring scope.</notes>
+      </impact-check>
+      <r>
+        <outcome>DONE</outcome>
+        <observations>Refactored prompt messages from discovery-first wording to direct tool invocation guidance with explicit tool names and copy-ready argument patterns. Updated search, smart-search, get-image, person/location, upload, share, and download prompt texts plus usage-guide workflows for consistency.</observations>
+        <lessons-learned>Prompt quality improves materially when tool names and concrete argument examples are embedded directly; fallback discovery guidance should be secondary, not primary.</lessons-learned>
+        <files>
+          <file>claw2immich/prompts.py</file>
+          <file>docs/usage-guide.md</file>
+          <file>tests/test_prompts.py</file>
+        </files>
+      </r>
+    </item>
+
+    <item id="56" type="bug" status="DONE" priority="HIGH" complexity="M" security="false">
+      <title>Asset web_url may use person UUID instead of asset UUID for person-tagged assets</title>
+      <branch>bug/item-56-asset-web-url-person-uuid-mismatch</branch>
+      <depends-on></depends-on>
+      <justification>For assets associated with people, claw2immich may generate a `web_url` that embeds a person UUID (e.g. from related person data) instead of the asset UUID. URLs like `/photos/{person_uuid}` can still return HTTP 200 on Immich because the web app is an SPA shell, but may show 404 content or the wrong item in-app. This makes link verification by HTTP status alone unreliable and can hide real decoration bugs.</justification>
+
+      <tasks>
+        <task id="56.1">Reproduce with real `immich_searchassets` responses containing person associations and capture both `id` (asset) and any person UUID fields present in the same item.</task>
+        <task id="56.2">Trace decoration path in `tooling.py` (`_extract_single_id`, `_decorate_single_item`, `_detect_response_type`) to identify where person UUID can override or leak into asset web_url construction.</task>
+        <task id="56.3">Fix ID selection precedence for asset decoration so `/photos/{id}` always uses the asset UUID for asset-type items, even when person metadata is present.</task>
+        <task id="56.4">Add regression tests in `tests/test_url_decoration.py` that model mixed asset+person fields and assert `web_url` uses asset UUID, not `personId` or nested person IDs.</task>
+        <task id="56.5">Review and tighten verify tests (including integration URL-access tests) so they validate semantic correctness (expected UUID/path) rather than relying only on HTTP 200 from SPA shell responses.</task>
+      </tasks>
+
+      <verification>
+        <tests>
+          <test type="unit">pytest tests/test_url_decoration.py -v</test>
+          <test type="integration">pytest tests/test_integration_url_access.py -v</test>
+        </tests>
+        <manual-steps>
+          <step order="1">Call `immich_searchassets` for an asset known to include person associations and confirm `web_url` path UUID equals the asset UUID from the same item.</step>
+          <step order="2">Open the generated web_url and verify it resolves to the expected asset page, not a person page or unrelated photo.</step>
+          <step order="3">Verify test expectations do not pass solely because SPA routes return HTTP 200; include UUID/path assertions in test logic.</step>
+        </manual-steps>
+      </verification>
+
+      <impact-check>
+        <affected-items>
+          <item-ref id="52">Regression: web_url missing in immich_searchassets and immich_searchsmart item results</item-ref>
+          <item-ref id="50">Integration test: verify web_url accessibility for all URL types (items 46–49)</item-ref>
+          <item-ref id="49">Person objects decorated with /photos/{id} instead of /people/{id} URLs</item-ref>
+          <item-ref id="46">Add IMMICH_EXTERNAL_DOMAIN parameter to docker-compose and include externalDomain-based URLs in tool responses</item-ref>
+        </affected-items>
+        <notes>Impact check: referenced URL-decoration features/items are documented as FULL/TESTED. Main risk is silent false-positive verification due to SPA status-code behavior; tests should assert semantic URL correctness (ID/path type), not status code alone.</notes>
+      </impact-check>
+      <r>
+        <outcome>DONE</outcome>
+        <observations>Implemented URL-decoration ID extraction with URL-type-aware precedence to prevent person UUID leakage into asset URLs. Asset decoration now only accepts asset identifiers (`assetId`, `id`) and no longer falls back to `personId` for `/photos/{id}` links. Added regression unit tests for mixed asset/person field payloads and tightened integration assertions so asset links are checked against asset UUID semantics (including explicit negative check when `personId` is present).</observations>
+        <lessons-learned>For SPA-backed URLs, HTTP 200 is insufficient as a correctness signal. Verification must assert semantic URL composition (entity type + expected UUID source) to avoid false positives.</lessons-learned>
+        <files>
+          <file>claw2immich/tooling.py</file>
+          <file>tests/test_url_decoration.py</file>
+          <file>tests/test_integration_url_access.py</file>
+        </files>
+      </r>
+    </item>
+
+    <item id="57" type="feature" status="DONE" priority="MEDIUM" complexity="S" security="false">
+      <title>Add helper script to list .env files and run Smart Search with direct JSON output</title>
+      <branch>feature/item-57-helper-env-list-smart-search-json</branch>
+      <depends-on></depends-on>
+      <justification>Developers need a quick local utility to discover available environment files and execute a parameterized Smart Search call without starting an MCP client flow. A helper script that enumerates .env candidates, accepts CLI arguments, and prints the raw JSON response enables faster troubleshooting and repeatable debugging of search behavior.</justification>
+
+      <tasks>
+        <task id="57.1">Create a helper CLI script under helper/ that lists available .env files (for example .env, .env_test, .env_web) and allows selecting one via argument.</task>
+        <task id="57.2">Add CLI parameters for Smart Search input (minimum query text; optional size/order/filters where available).</task>
+        <task id="57.3">Load selected environment values safely (base URL + auth) and call the corresponding Immich Smart Search endpoint.</task>
+        <task id="57.4">Return/print the response as direct JSON (no extra formatting) and use non-zero exit codes for request/validation failures.</task>
+        <task id="57.5">Add focused tests for argument parsing and request/response handling (including missing env file and HTTP error cases).</task>
+        <task id="57.6">Document usage in README.md (or helper script header) with one working command example.</task>
+      </tasks>
+
+      <verification>
+        <manual-steps>
+          <step order="1">Run the helper script with a valid env file argument and query, then verify the output is raw JSON from Smart Search.</step>
+          <step order="2">Run with an invalid or missing env file and verify clear error output with non-zero exit code.</step>
+          <step order="3">Run with missing required query parameter and verify argument validation fails fast.</step>
+        </manual-steps>
+      </verification>
+
+      <impact-check>
+        <affected-items>
+          <item-ref id="CF-23">searchAssets/searchSmart missing and 400 errors in tool_access_report</item-ref>
+          <item-ref id="CF-11">Add MCP usage guide with server instructions and workflow examples</item-ref>
+          <item-ref id="55">Make MCP prompts concrete with explicit tool names and argument templates</item-ref>
+        </affected-items>
+        <notes>Impact check: referenced related items are documented as DONE/FULL/TESTED in current planning docs; no additional warning for completeness != FULL or test-coverage == NONE is required for this feature proposal.</notes>
+      </impact-check>
+      <r>
+        <outcome>DONE</outcome>
+        <observations>Implemented helper/smart_search_cli.py with CLI options to list available .env files and execute POST /api/search/smart using selected env credentials. Script prints direct JSON output to stdout and returns non-zero exit codes for missing args, missing env file, config/auth errors, and request failures. Added focused tests for env listing/parsing, argument validation, success path, and HTTP error handling.</observations>
+        <lessons-learned>Helper utilities are easier to test and maintain when CLI behavior delegates to small pure functions (env discovery, parsing, request execution) rather than embedding all logic in __main__.</lessons-learned>
+        <files>
+          <file>helper/smart_search_cli.py</file>
+          <file>tests/test_helper_smart_search_cli.py</file>
+          <file>README.md</file>
+        </files>
+      </r>
     </item>
 
   </items>
 
   <changelog>
+    <entry date="2026-02-19" user="GitHub Copilot">Item 57 implemented. Added helper/smart_search_cli.py to list local .env files and run Smart Search via CLI parameters with direct JSON stdout output. Added focused tests in tests/test_helper_smart_search_cli.py (7 passed) and documented usage examples in README.</entry>
+    <entry date="2026-02-19" user="GitHub Copilot">Added item 57 (MEDIUM FEATURE): Add helper script to list .env files and run Smart Search with direct JSON output. Status set to PENDING. Branch: feature/item-57-helper-env-list-smart-search-json. Duplicate check: no direct duplicate found; related to searchSmart/tooling items but distinct scope as a standalone helper CLI utility for local debugging and raw JSON output.</entry>
+    <entry date="2026-02-19" user="GitHub Copilot">Item 56 implemented. Fixed asset URL decoration to prevent person UUID usage in `/photos/{id}` links by introducing URL-type-aware ID extraction precedence in tooling. Added regression coverage for mixed asset/person fields and strengthened integration verification to assert semantic ID/path correctness (not status-code-only). Verification: `pytest tests/test_url_decoration.py tests/test_integration_url_access.py -q` → 83 passed, 8 skipped.</entry>
+    <entry date="2026-02-19" user="GitHub Copilot">Item 56 auto-approved and set to IN_PROGRESS for implementation. Branch: bug/item-56-asset-web-url-person-uuid-mismatch. No unresolved dependencies.</entry>
+    <entry date="2026-02-19" user="GitHub Copilot">Added item 56 (HIGH BUG): Asset web_url may use person UUID instead of asset UUID for person-tagged assets. Status set to PENDING. Branch: bug/item-56-asset-web-url-person-uuid-mismatch. Duplicate check: related to item 49 (person-vs-asset URL typing) but not a duplicate; this item targets wrong UUID source selection and verifies that current HTTP-200-only checks can mask SPA-level link errors.</entry>
+    <entry date="2026-02-19" user="GitHub Copilot">Aligned item 51 with implemented item 53 delivery strategy and marked item 51 DONE. Updated scope from raw binary return to MCP-safe base64 payload contract plus configurable delivery mode (`inline_base64` / `immich_link`), refreshed verification notes, and added result block with implemented files/tests.</entry>
+    <entry date="2026-02-19" user="GitHub Copilot">Items 52, 53, 54, 55 implemented. Item 52: fixed missing web_url on POST search endpoints by enabling decoration for /search/* POST responses and added regressions. Item 53: added configurable download delivery strategies via IMMICH_DOWNLOAD_ASSET_DELIVERY (inline_base64 or immich_link) with docs/tests. Item 54: fixed binary payload corruption risk by returning JSON-safe base64 wrappers for non-text responses and preventing raw-byte emission from downloadAsset. Item 55: refactored prompts and usage-guide workflows to use explicit tool names and concrete argument templates instead of generic tool discovery wording. Verification: focused suites passed (134 passed), integration URL access skipped without live env, and MCP-client OpenAPI tests failed in this environment due missing live Immich server (connection refused).</entry>
+    <entry date="2026-02-19" user="GitHub Copilot">Approved items 52, 53, 54, 55. Status set to APPROVED. Branches: bug/item-52-regression-web-url-missing-search, refactoring/item-53-refactor-downloadasset-delivery-mcp-payload, bug/item-54-native-binary-endpoints-corrupted-payload, refactoring/item-55-make-mcp-prompts-concrete-explicit. Dependency warning: item 53 depends on item 51, which is currently PENDING (not DONE).</entry>
+    <entry date="2026-02-19" user="GitHub Copilot">Added item 55 (MEDIUM REFACTORING): Make MCP prompts concrete with explicit tool names and argument templates. Status set to PENDING. Branch: refactoring/item-55-concrete-prompts-explicit-tool-names-args. Duplicate check: related to completed prompt items 24/41/45 but not a duplicate because this item specifically removes generic discovery wording and standardizes direct tool+argument guidance.</entry>
+    <entry date="2026-02-19" user="GitHub Copilot">Added item 54 (HIGH BUG): Native binary endpoints return corrupted payload via UTF-8/JSON serialization (immich_downloadasset, immich_viewasset). Status set to PENDING. Branch: bug/item-54-binary-endpoints-utf8-json-corruption. Duplicate check: related to items 51 and 53 but not a duplicate because this item specifically targets byte-integrity corruption root-cause analysis and safe exposure rules for native binary endpoints.</entry>
+    <entry date="2026-02-19" user="GitHub Copilot">Added item 53 (MEDIUM REFACTORING): Refactor downloadAsset delivery for MCP payload limits (REST endpoint vs temporary Immich link). Status set to PENDING. Branch: refactoring/item-53-downloadasset-delivery-mcp-payload-limits. Depends-on item 51. Scope includes validating effective payload limits, comparing both delivery options with a decision matrix, and documenting user-facing decision options.</entry>
+    <entry date="2026-02-19" user="GitHub Copilot">Added item 52 (HIGH BUG): Regression: web_url missing in immich_searchassets and immich_searchsmart item results. Status set to PENDING. Priority HIGH, complexity M. Branch: bug/item-52-web-url-missing-search-results. Depends-on item 50. Duplicate check: related to completed item 48 but not treated as duplicate because symptom is reported as current behavior (regression candidate) and explicitly includes searchsmart item-level decoration.</entry>
     <entry date="2026-02-19" user="GitHub Copilot">Full-test run executed per prompt (`uv run pytest tests/ -v`): initial result 2 failed, 170 passed, 10 skipped. Failures mapped to item 50 integration scope and fixed by adding /api/assets fallback to /api/search/assets in integration tests and enhancing album type inference in tooling.py. Final rerun: 173 passed, 11 skipped, 0 failed. Item 50 marked DONE.</entry>
     <entry date="2026-02-19" user="GitHub Copilot">Added item 51 (MEDIUM FEATURE): Add downloadAsset tool returning original asset file content as base64 (default) or binary. Status set to PENDING. Branch: feature/item-51-downloadasset-tool-binary-base64. Includes server-side authenticated download for MCP clients without direct API key access, plus usage-guide and prompts updates.</entry>
     <entry date="2026-02-16" user="GitHub Copilot">Approved item 14: Reformat python-files for PEP 8
