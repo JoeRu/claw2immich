@@ -83,5 +83,5 @@ def test_prompt_messages_use_explicit_tool_names():
     assert "body_query" in smart_msg
 
     get_image_msg = registered_prompts["Immich: Get image"]("asset-1")
-    assert "immich_getassetbyid" in get_image_msg
+    assert "immich_getassetinfo" in get_image_msg
     assert "path_id" in get_image_msg
