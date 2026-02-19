@@ -1,5 +1,7 @@
 import logging
 import inspect
+import base64
+import re
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -17,7 +19,7 @@ from .config import (
     profile_allows_write,
 )
 from .constants import MAX_DESCRIPTION_LEN, MAX_SUMMARY_LEN, WRITE_METHODS
-from .http_client import _request
+from .http_client import _request, _request_bytes
 from .openapi import (
     _apply_path_params,
     _fetch_openapi_spec,
@@ -146,10 +148,23 @@ def _detect_response_type(item: Any) -> str | None:
         return "album"
     if "placeId" in item:
         return "place"
+
+    # Check for album-specific fields (for album objects that may only have "id")
+    if any(
+        key in item
+        for key in (
+            "albumName",
+            "albumThumbnailAssetId",
+            "sharedLinkId",
+            "isActivityEnabled",
+        )
+    ):
+        return "album"
     
     # Check for person-specific fields (for person objects that may only have "id")
-    # Common person fields: birthDate, thumbnailPath, email
-    if any(k in item for k in ("birthDate", "thumbnailPath")):
+    # birthDate, thumbnailPath, isHidden, and faces are exclusive to Immich person objects
+    # and never appear on asset/album/place records.
+    if any(k in item for k in ("birthDate", "thumbnailPath", "isHidden", "faces")):
         return "person"
     
     # Default: if has "id" field, likely an asset
@@ -476,6 +491,8 @@ def tool_access_report() -> dict[str, Any]:
     """Describe which tools are available based on API key permissions."""
     logger.debug("Generating tool access report")
     capabilities = _discover_capabilities()
+    config = _get_config()
+    has_auth = bool(config["api_key"] or config["api_token"])
     allowed_tools = [
         # "openapi_summary",
         # "list_openapi_paths",
@@ -485,6 +502,15 @@ def tool_access_report() -> dict[str, Any]:
         "write_capability_report",
     ]
     blocked_tools: list[dict[str, str]] = []
+    if has_auth:
+        allowed_tools.append("downloadAsset")
+    else:
+        blocked_tools.append(
+            {
+                "tool": "downloadAsset",
+                "reason": "Missing IMMICH_API_KEY or IMMICH_API_TOKEN",
+            }
+        )
     for tool_name, info in capabilities.items():
         if info.get("allowed"):
             allowed_tools.append(tool_name)
@@ -506,9 +532,50 @@ def write_capability_report() -> dict[str, str | bool]:
     return _discover_write_capability()
 
 
+def download_asset(asset_id: str, output: str = "base64") -> dict[str, Any]:
+    """Download an asset file and return it as base64 (default) or binary bytes."""
+    try:
+        mode = (output or "base64").strip().lower()
+        if mode not in ("base64", "binary"):
+            raise ValueError("output must be 'base64' or 'binary'")
+
+        content, response_headers = _request_bytes(
+            "GET",
+            f"/api/assets/{asset_id}/original",
+            require_auth=True,
+        )
+        content_type = response_headers.get("content-type", "application/octet-stream")
+        content_disposition = response_headers.get("content-disposition", "")
+        filename_match = re.search(
+            r'filename="?([^";]+)"?', content_disposition, re.IGNORECASE
+        )
+        filename = filename_match.group(1) if filename_match else None
+
+        payload: str | bytes
+        if mode == "base64":
+            payload = base64.b64encode(content).decode("ascii")
+        else:
+            payload = content
+
+        result: dict[str, Any] = {
+            "asset_id": asset_id,
+            "output": mode,
+            "content_type": content_type,
+            "size_bytes": len(content),
+            "data": payload,
+        }
+        if filename:
+            result["filename"] = filename
+        return result
+    except Exception as exc:
+        return {"error": str(exc)}
+
+
 def _register_tools(mcp) -> None:
     logger.info("Registering MCP tools")
     capabilities = _discover_capabilities()
+    config = _get_config()
+    has_auth = bool(config["api_key"] or config["api_token"])
     for tool_func in (
         # openapi_summary,
         # list_openapi_paths,
@@ -518,6 +585,9 @@ def _register_tools(mcp) -> None:
         write_capability_report,
     ):
         mcp.tool()(tool_func)
+
+    if has_auth:
+        mcp.tool(name="downloadAsset")(download_asset)
 
     if capabilities.get("get_current_user", {}).get("allowed"):
         mcp.tool()(get_current_user)

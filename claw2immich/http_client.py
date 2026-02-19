@@ -108,6 +108,55 @@ def _request(
     return response.text
 
 
+def _request_bytes(
+    method: str,
+    path: str,
+    *,
+    params: dict[str, Any] | None = None,
+    json_body: Any | None = None,
+    require_auth: bool = False,
+    extra_headers: dict[str, Any] | None = None,
+) -> tuple[bytes, dict[str, str]]:
+    try:
+        config = _get_config()
+        url = f"{config['base_url']}{path}"
+        headers = _build_headers(config, require_auth, extra_headers)
+    except ValueError as exc:
+        raise ImmichConfigError(str(exc)) from exc
+
+    has_credentials = bool(config["api_key"] or config["api_token"])
+    if has_credentials and config["base_url"].startswith("http://"):
+        allow_http = os.getenv("IMMICH_ALLOW_HTTP", "").lower() in ("true", "1")
+        if not allow_http:
+            logger.warning(
+                "Credentials are configured but IMMICH_BASE_URL uses plain HTTP. "
+                "This is insecure! Set IMMICH_ALLOW_HTTP=true to suppress this warning."
+            )
+
+    logger.debug(f"Requesting binary payload {method} {path}")
+    try:
+        with httpx.Client(timeout=DEFAULT_TIMEOUT) as client:
+            response = client.request(
+                method, url, params=params, json=json_body, headers=headers
+            )
+        response.raise_for_status()
+        logger.debug(f"Binary response {response.status_code} for {method} {path}")
+    except httpx.HTTPStatusError as exc:
+        logger.error(
+            f"HTTP error {exc.response.status_code} for {method} {path}: "
+            f"{exc.response.text[:100]}"
+        )
+        raise ImmichAPIError(exc.response.status_code, exc.response.text) from exc
+    except httpx.RequestError as exc:
+        logger.error(f"Network error for {method} {path}: {str(exc)[:100]}")
+        raise ImmichNetworkError(str(exc)) from exc
+
+    response_headers = {
+        str(key).lower(): str(value) for key, value in response.headers.items()
+    }
+    return response.content, response_headers
+
+
 def _probe(
     method: str,
     path: str,

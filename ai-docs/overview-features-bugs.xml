@@ -2,12 +2,12 @@
 <overview-features-bugs>
   <metadata>
     <created>2026-02-15</created>
-    <updated>2026-02-18</updated>
+    <updated>2026-02-19</updated>
   </metadata>
 
   <items>
 
-    <item id="49" type="bug" status="IN_PROGRESS" priority="HIGH" complexity="S" security="false">
+    <item id="49" type="bug" status="DONE" priority="HIGH" complexity="S" security="false">
       <title>Person objects decorated with /photos/{id} instead of /people/{id} URLs</title>
       <branch>bug/item-49-person-url-decoration-incorrect</branch>
       <justification>URL decoration (_decorate_single_item) generates incorrect `/photos/{id}` URLs for person objects, when they should generate `/people/{id}` URLs. This occurs when person objects returned from endpoints like /search/* or /people endpoints have only an "id" field (not "personId") and lack an explicit "type": "PERSON" field. The inference logic in _detect_response_type() falls back to treating them as assets (since they have "id" but no distinguishing ID field like "personId" or "albumId"), resulting in broken web UI links for people. This undermines the usability improvement from URL decoration items 46-48.</justification>
@@ -39,8 +39,33 @@
         </affected-items>
         <notes>Items 46-48 provide URL decoration foundation. This bug fix addresses a correctness issue in type detection that breaks user experience when accessing people objects. High priority because it affects all search/people operations and produces unclickable links.</notes>
       </impact-check>
-    </item>
-
+      <r>
+        <outcome>DONE</outcome>
+        <observations>The heuristic fix for person-object type detection was already partially in place
+          (birthDate, thumbnailPath). During implementation, two additional Immich-exclusive person
+          fields were identified and added to the heuristic check: isHidden (a boolean always present
+          on person objects, never on assets) and faces (array field returned in detailed person
+          responses). The final detection order in _detect_response_type() is: explicit type field
+          (PERSON/IMAGE/etc.) → dedicated ID fields (personId, albumId, placeId) → person-specific
+          structural fields (birthDate, thumbnailPath, isHidden, faces) → fallback to asset if "id"
+          present. Added 3 new tests: test_detect_response_type_person_with_ishidden,
+          test_detect_response_type_person_with_faces, and
+          test_decorate_response_person_with_ishidden_field. All 77 url-decoration tests pass;
+          full suite: 159 passed, 12 skipped, 3 pre-existing MCP-client failures (Connection
+          refused — require live Immich server, unrelated to this item).
+        </observations>
+        <lessons-learned>When detecting object types from schema-less API responses, prefer
+          checking fields that are exclusive to one entity type and always present (isHidden for
+          persons) over fields that are optional (birthDate) or shared names (name). Enumerating
+          the full set of entity-exclusive fields up front prevents future regressions when Immich
+          drops optional fields from certain endpoints.
+        </lessons-learned>
+        <files>
+          <file>claw2immich/tooling.py</file>
+          <file>tests/test_url_decoration.py</file>
+        </files>
+      </r>
+    </item> 
     <item id="48" type="bug" status="DONE" priority="HIGH" complexity="M" security="false">
       <title>URL decorator not applied to search endpoints (e.g., immich_searchassets) and bulk array responses</title>
       <branch>bug/item-48-decorator-missing-search-endpoints</branch>
@@ -342,9 +367,117 @@
     </item>
 
 
+    <item id="50" type="refactoring" status="DONE"
+          priority="MEDIUM" complexity="M" security="false">
+      <title>Integration test: verify web_url accessibility for all URL types (items 46–49)</title>
+      <branch>refactoring/item-50-integration-test-url-accessibility</branch>
+      <depends-on>49</depends-on>
+      <justification>
+        Items 46–49 generate web_url fields in decorated tool responses, but no test ever
+        performs a live HTTP GET against those URLs. The person-URL bug in item 49
+        (/photos/{person_id} instead of /people/{person_id}) produces URLs that return 404
+        because person IDs do not correspond to asset records. A dedicated integration test
+        that authenticates via POST /api/auth/login and then GETs each generated web_url
+        catches these regressions before they reach production. Credentials for the session
+        login are read from a separate .env_web file to keep them isolated from the API-key
+        .env already used by test_integration_permissions.py.
+      </justification>
+      <tasks>
+        <task id="50.1">Create tests/test_integration_url_access.py following the pattern of
+          test_integration_permissions.py (load .env_web, skip if absent or server
+          unreachable).</task>
+        <task id="50.2">Implement POST /api/auth/login flow to obtain accessToken; use it as
+          Bearer token for all web_url GET requests.</task>
+        <task id="50.3">Add test_asset_web_url_accessible: GET /api/assets, assert web_url
+          present and matches …/photos/{id}, HTTP GET web_url with bearer token, assert
+          status != 404.</task>
+        <task id="50.4">Add test_album_web_url_accessible: GET /api/albums, assert web_url
+          matches …/albums/{id}, HTTP GET web_url, assert status != 404.</task>
+        <task id="50.5">Add test_person_web_url_accessible: GET /api/people, assert web_url
+          matches …/people/{id} (NOT /photos/{id}), HTTP GET web_url, assert status != 404.
+          Serves as the live regression test for item 49.</task>
+        <task id="50.6">Add test_place_web_url_accessible (skip if no places): GET
+          /api/places, assert web_url contains /explore, HTTP GET web_url, assert status !=
+          404.</task>
+        <task id="50.7">Document .env_web variables (IMMICH_BASE_URL, IMMICH_EMAIL,
+          IMMICH_PASSWORD, IMMICH_API_KEY) in docs/usage-guide.md under a new Integration
+          Testing section.</task>
+        <task id="50.8">Full regression run: pytest tests/ -v including new integration tests
+          (requires live Immich + .env_web).</task>
+      </tasks>
+      <verification>
+        <tests>
+          <test type="integration">pytest tests/test_integration_url_access.py -v
+            (requires .env_web with live Immich credentials)</test>
+          <test type="unit">pytest tests/test_url_decoration.py -v (existing; must still pass
+            after any tooling.py changes for item 49)</test>
+          <test type="unit">pytest tests/ -v (full regression, no live server required)</test>
+        </tests>
+        <manual-steps>
+          <step order="1">Copy .env to .env_web, add IMMICH_EMAIL and IMMICH_PASSWORD for the
+            Immich account to be used for session login.</step>
+          <step order="2">Run pytest tests/test_integration_url_access.py -v and confirm all
+            four web_url tests pass (no 404 responses).</step>
+          <step order="3">Confirm test_person_web_url_accessible uses …/people/{id} URL pattern,
+            not …/photos/{id}.</step>
+        </manual-steps>
+      </verification>
+      <r>
+        <outcome>DONE</outcome>
+        <observations>Executed full test workflow (`uv run pytest tests/ -v`) and initially observed 2 failures in tests/test_integration_url_access.py: (1) test_asset_web_url_accessible failed on Immich instances returning 404 for GET /api/assets, (2) test_album_web_url_accessible detected incorrect /photos/{id} decoration for album list entries containing only generic id fields. Failure mapping: primary match to item 50 (this integration suite), with root-cause code path in claw2immich/tooling.py. Fixes applied: added fallback in asset integration test to POST /api/search/assets when GET /api/assets is unavailable; improved _detect_response_type() album inference using album-specific fields (albumName, albumThumbnailAssetId, sharedLinkId, isActivityEnabled); added unit regressions for album-name inference. Re-ran full suite: 173 passed, 11 skipped, 0 failed.</observations>
+        <lessons-learned>Live integration tests should tolerate endpoint drift across Immich versions (fallback or skip strategy), while type inference for array decoration must include entity-specific structural heuristics beyond explicit type/id-key markers.</lessons-learned>
+        <files>
+          <file>tests/test_integration_url_access.py</file>
+          <file>claw2immich/tooling.py</file>
+          <file>tests/test_url_decoration.py</file>
+        </files>
+      </r>
+    </item>
+
+    <item id="51" type="feature" status="PENDING" priority="MEDIUM" complexity="M" security="false">
+      <title>Add downloadAsset tool returning asset file content as base64 or binary</title>
+      <branch>feature/item-51-downloadasset-tool-binary-base64</branch>
+      <depends-on></depends-on>
+      <justification>The MCP client does not have direct access to the Immich API key, but still needs to retrieve original image/video bytes for downstream processing. A dedicated downloadAsset MCP tool allows secure server-side authenticated download while returning payload content to the client in either base64 (default, transport-safe) or binary mode.</justification>
+
+      <tasks>
+        <task id="51.1">Add binary HTTP request helper in http_client.py that preserves raw response bytes and headers while reusing existing auth/error handling patterns.</task>
+        <task id="51.2">Implement downloadAsset tool in tooling.py with required asset_id and optional output parameter (`base64` default, `binary` optional).</task>
+        <task id="51.3">Register the tool with explicit MCP name `downloadAsset` and include it in tool_access_report with auth-aware availability/blocked reason.</task>
+        <task id="51.4">Return structured metadata (content_type, size_bytes, optional filename) together with payload data.</task>
+        <task id="51.5">Update docs/usage-guide.md with a concrete downloadAsset workflow example for clients without API key access.</task>
+        <task id="51.6">Update prompts.py to include a dedicated downloadAsset prompt use case.</task>
+        <task id="51.7">Add unit tests for base64 default behavior, binary mode, invalid output handling, and raw-byte request helper.</task>
+      </tasks>
+
+      <verification>
+        <tests>
+          <test type="unit">pytest tests/test_download_asset.py -v</test>
+          <test type="unit">pytest tests/test_http_client.py -v</test>
+          <test type="unit">pytest tests/test_prompts.py -v</test>
+        </tests>
+        <manual-steps>
+          <step order="1">Call `downloadAsset` with only `asset_id` and verify `output` is `base64` and payload decodes to valid file bytes.</step>
+          <step order="2">Call `downloadAsset` with `output=binary` and verify raw byte payload is returned.</step>
+          <step order="3">Call `tool_access_report` without credentials and verify `downloadAsset` appears in blocked_tools with missing auth reason.</step>
+        </manual-steps>
+      </verification>
+
+      <impact-check>
+        <affected-items>
+          <item-ref id="CF-1">Implement MCP server for Immich REST API</item-ref>
+          <item-ref id="CF-11">Add MCP usage guide with server instructions and workflow examples</item-ref>
+          <item-ref id="CF-24">Add searchAssets/searchSmart guidance to prompts</item-ref>
+        </affected-items>
+        <notes>Affected completed features are FULL and TESTED; no impact warning for incomplete completeness/test coverage is required. Main risk is payload size for large original files, mitigated by explicit output mode and metadata.</notes>
+      </impact-check>
+    </item>
+
   </items>
 
   <changelog>
+    <entry date="2026-02-19" user="GitHub Copilot">Full-test run executed per prompt (`uv run pytest tests/ -v`): initial result 2 failed, 170 passed, 10 skipped. Failures mapped to item 50 integration scope and fixed by adding /api/assets fallback to /api/search/assets in integration tests and enhancing album type inference in tooling.py. Final rerun: 173 passed, 11 skipped, 0 failed. Item 50 marked DONE.</entry>
+    <entry date="2026-02-19" user="GitHub Copilot">Added item 51 (MEDIUM FEATURE): Add downloadAsset tool returning original asset file content as base64 (default) or binary. Status set to PENDING. Branch: feature/item-51-downloadasset-tool-binary-base64. Includes server-side authenticated download for MCP clients without direct API key access, plus usage-guide and prompts updates.</entry>
     <entry date="2026-02-16" user="GitHub Copilot">Approved item 14: Reformat python-files for PEP 8
       readability. Status set to APPROVED. Branch:
       refactoring/item-14-reformat-main-py-for-pep8-readability. Security impact: Minimal, code
@@ -2577,5 +2710,7 @@
     <entry date="2026-02-18" user="Claude Code">Added item 48 (HIGH BUG): URL decorator not applied to search endpoints (e.g., immich_searchassets) and bulk array responses. Status set to PENDING. Priority HIGH, complexity M. Branch: bug/item-48-decorator-missing-search-endpoints. Depends-on item 47. Issue: _should_decorate_response() does not detect all endpoints returning arrays of assets/items, particularly search and browse endpoints. Requires comprehensive endpoint audit, improved detection logic, and support for nested response structures.</entry>
     <entry date="2026-02-18" user="Claude Code">Item 48 implemented. Extended _should_decorate_response() to comprehensively detect search (/search/*), browse (/cine, /explore, /memories, /map, /duplicates), stats (/statistics, /timelines), and bulk endpoints (/assets, /albums, /people, /places). Added _extract_decoratable_array() to detect and extract arrays from nested structures (results, data, items, assets, albums, people, places, photos, memories, timelines, statistics fields). Updated _decorate_response() to handle wrapped arrays while preserving response structure. Added 22 new tests for wrapped arrays, metadata preservation, and endpoint detection. All 160 tests pass with no regressions.</entry>
     <entry date="2026-02-18" user="GitHub Copilot">Added item 49 (HIGH BUG): Person objects decorated with /photos/{id} instead of /people/{id} URLs. Status set to PENDING. Priority HIGH, complexity S. Branch: bug/item-49-person-url-decoration-incorrect. Depends-on item 48. Issue: URL decoration incorrectly generates /photos/{id} URLs for person objects when they lack explicit "type": "PERSON" field or "personId" field (only have "id"). The inference logic in _detect_response_type() falls back to asset detection, breaking person object links in search results and /people endpoints. Requires improving type detection heuristics for person-specific fields.</entry>
+    <entry date="2026-02-19" user="GitHub Copilot">Item 49 implemented. Confirmed birthDate/thumbnailPath heuristics already present; extended _detect_response_type() with two additional Immich-exclusive person fields: isHidden (boolean always present on persons, never on assets) and faces (array field in detailed person responses). Added 3 new tests: test_detect_response_type_person_with_ishidden, test_detect_response_type_person_with_faces, test_decorate_response_person_with_ishidden_field. All 77 url-decoration tests pass (74 prior + 3 new). Full suite: 159 passed, 12 skipped, 3 pre-existing MCP-client failures requiring live server. Status set to DONE.</entry>
+    <entry date="2026-02-19" user="GitHub Copilot">Added item 50 (MEDIUM REFACTORING): Integration test to verify web_url accessibility for all URL types produced by items 46–49. Creates tests/test_integration_url_access.py with session login via POST /api/auth/login and live HTTP GET assertions for asset (/photos/{id}), album (/albums/{id}), person (/people/{id}), and place (/explore?places={id}) URLs. test_person_web_url_accessible serves as the live regression test for item 49 by asserting the URL is /people/{id} and NOT /photos/{id}. Credentials loaded from .env_web (IMMICH_BASE_URL, IMMICH_EMAIL, IMMICH_PASSWORD, IMMICH_API_KEY). Depends-on item 49.</entry>
   </changelog>
 </overview-features-bugs>

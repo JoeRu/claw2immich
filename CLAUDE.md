@@ -33,6 +33,11 @@ for implementation details of MCP.
 - Immich API key/token handling is security-sensitive — never log secrets
 - OpenAPI spec source: https://github.com/immich-app/immich/blob/main/open-api/immich-openapi-specs.json
 
+## Docs
+
+- [`docs/usage-guide.md`](docs/usage-guide.md) is an **MCP client-facing resource** served at runtime via `resources/read`. It documents tool usage, URL patterns, and workflow examples for AI agents consuming the server. Do **not** put developer or contributor information (test setup, env files, architecture) there.
+- Developer and contributor documentation belongs in this file (`CLAUDE.md`) or `README.md`.
+
 ## AI-Assisted Development Workflow
 
 !Read [CLAUDE-implementation-plan-chapter.md](CLAUDE-implementation-plan-chapter.md) for details.

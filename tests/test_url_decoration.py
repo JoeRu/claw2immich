@@ -895,3 +895,53 @@ def test_decorate_response_person_birthdate_has_priority_over_generic_id():
     
     # Should be treated as person due to birthDate field
     assert decorated["web_url"] == "https://immich.example.com/people/entity-789"
+
+def test_detect_response_type_person_with_ishidden():
+    """Test _detect_response_type identifies person by isHidden field (always present on persons)."""
+    from claw2immich.tooling import _detect_response_type
+
+    # Person object that has no birthDate / thumbnailPath but has isHidden
+    item = {"id": "person-789", "name": "Dana", "isHidden": False}
+    url_type = _detect_response_type(item)
+    assert url_type == "person"
+
+
+def test_detect_response_type_person_with_faces():
+    """Test _detect_response_type identifies person by faces field."""
+    from claw2immich.tooling import _detect_response_type
+
+    # Person object returned with a faces list (common in detailed person responses)
+    item = {"id": "person-999", "name": "Eve", "faces": []}
+    url_type = _detect_response_type(item)
+    assert url_type == "person"
+
+
+def test_decorate_response_person_with_ishidden_field():
+    """Test _decorate_response gives /people/{id} URL when only isHidden distinguishes person."""
+    from claw2immich.tooling import _decorate_response
+
+    # Edge case: person has no birthDate or thumbnailPath — only isHidden marks it as a person
+    response = {"id": "person-789", "name": "Dana", "isHidden": True}
+    decorated = _decorate_response(response, "https://immich.example.com", "array")
+
+    assert "web_url" in decorated
+    assert decorated["web_url"] == "https://immich.example.com/people/person-789"
+
+
+def test_detect_response_type_album_with_albumname_only():
+    """Album objects with generic id + albumName should be treated as albums."""
+    from claw2immich.tooling import _detect_response_type
+
+    item = {"id": "album-123", "albumName": "Vacation"}
+    assert _detect_response_type(item) == "album"
+
+
+def test_decorate_response_album_with_albumname_field():
+    """Array decoration should produce /albums/{id} for albumName-based album objects."""
+    from claw2immich.tooling import _decorate_response
+
+    response = [{"id": "album-123", "albumName": "Vacation"}]
+    decorated = _decorate_response(response, "https://immich.example.com", "array")
+
+    assert isinstance(decorated, list)
+    assert decorated[0]["web_url"] == "https://immich.example.com/albums/album-123"

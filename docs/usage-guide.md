@@ -118,6 +118,20 @@ Example call:
 - Tool: description `GET /api/assets/{id}`
 - Args: `{ "path_id": "<asset-id>" }`
 
+### Download Original Asset File (Base64/Binary)
+Use `downloadAsset` when the MCP client needs file content but does not have direct access to an Immich API key.
+
+1. Call `downloadAsset` with `asset_id`.
+2. Optional: set `output`:
+  - `base64` (default) for safe transport as text.
+  - `binary` to receive raw bytes.
+3. Read `content_type`, `size_bytes`, and optional `filename` from the response metadata.
+
+Example calls:
+- Tool: `downloadAsset`
+- Args: `{ "asset_id": "<asset-id>" }`
+- Args: `{ "asset_id": "<asset-id>", "output": "binary" }`
+
 ### Find a Person
 1. Look for tools with descriptions containing `people`, `person`, or `faces` (for example `GET /api/people` or `POST /api/people/search`).
 2. If the tool accepts a query, pass `query_<field>` or `body` based on the `inputSchema`.

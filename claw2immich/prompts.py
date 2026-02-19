@@ -26,6 +26,16 @@ def register_prompts_and_resources(mcp) -> None:
             f"Asset id: {asset_id}."
         )
 
+    @mcp.prompt(title="Immich: Download asset", description="Download the original asset bytes via MCP server credentials.")
+    def prompt_download_asset(asset_id: str, output: str = "base64") -> str:
+        return (
+            "Use the tool named downloadAsset. "
+            "Pass asset_id and optional output mode. "
+            "output='base64' (default) returns a base64 string, output='binary' returns binary bytes. "
+            "This is useful when the MCP client does not have direct access to the API key. "
+            f"Asset id: {asset_id}. Requested output mode: {output}."
+        )
+
     @mcp.prompt(title="Immich: Find person", description="Search for a person by name using people or face endpoints.")
     def prompt_find_person(person_name: str) -> str:
         return (

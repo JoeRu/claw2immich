@@ -45,7 +45,7 @@ def test_all_prompts_have_descriptions():
     fake = FakeMCP()
     register_prompts_and_resources(fake)
 
-    assert len(registered_prompts) == 9, f"Expected 9 prompts, got {len(registered_prompts)}"
+    assert len(registered_prompts) == 10, f"Expected 10 prompts, got {len(registered_prompts)}"
     for prompt_kwargs in registered_prompts:
         title = prompt_kwargs.get("title", "<no title>")
         desc = prompt_kwargs.get("description", "")

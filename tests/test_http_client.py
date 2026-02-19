@@ -10,6 +10,7 @@ from claw2immich.http_client import (
     ImmichNetworkError,
     _build_headers,
     _request,
+    _request_bytes,
 )
 
 
@@ -136,6 +137,32 @@ class TestRequest(unittest.TestCase):
         with self.assertRaises(ImmichConfigError) as ctx:
             _request("GET", "/api/test", require_auth=True)
         self.assertIn("IMMICH_API_KEY or IMMICH_API_TOKEN", str(ctx.exception))
+
+    @patch("claw2immich.http_client._get_config")
+    @patch("claw2immich.http_client.httpx.Client")
+    def test_request_bytes_success(self, mock_client_class, mock_get_config):
+        mock_get_config.return_value = {
+            "base_url": "http://localhost",
+            "api_key": "test-key",
+            "api_token": None,
+        }
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.content = b"\xff\xd8\xff"
+        mock_response.headers = {
+            "content-type": "image/jpeg",
+            "content-disposition": 'attachment; filename="photo.jpg"',
+        }
+        mock_client = MagicMock()
+        mock_client.request.return_value = mock_response
+        mock_client.__enter__ = MagicMock(return_value=mock_client)
+        mock_client.__exit__ = MagicMock(return_value=False)
+        mock_client_class.return_value = mock_client
+
+        payload, headers = _request_bytes("GET", "/api/assets/test/original")
+        self.assertEqual(payload, b"\xff\xd8\xff")
+        self.assertEqual(headers["content-type"], "image/jpeg")
+        self.assertIn("filename=\"photo.jpg\"", headers["content-disposition"])
 
 
 class TestHTTPWarning(unittest.TestCase):
