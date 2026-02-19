@@ -339,7 +339,7 @@ def test_get_download_asset_delivery_mode_default():
     os.environ.pop("IMMICH_DOWNLOAD_ASSET_DELIVERY", None)
     from claw2immich.config import get_download_asset_delivery_mode
 
-    assert get_download_asset_delivery_mode() == "inline_base64"
+    assert get_download_asset_delivery_mode() == "shared_link"
 
 
 def test_get_download_asset_delivery_mode_valid_values():
@@ -348,6 +348,12 @@ def test_get_download_asset_delivery_mode_valid_values():
     os.environ["IMMICH_DOWNLOAD_ASSET_DELIVERY"] = "immich_link"
     try:
         assert get_download_asset_delivery_mode() == "immich_link"
+    finally:
+        os.environ.pop("IMMICH_DOWNLOAD_ASSET_DELIVERY", None)
+
+    os.environ["IMMICH_DOWNLOAD_ASSET_DELIVERY"] = "shared_link"
+    try:
+        assert get_download_asset_delivery_mode() == "shared_link"
     finally:
         os.environ.pop("IMMICH_DOWNLOAD_ASSET_DELIVERY", None)
 

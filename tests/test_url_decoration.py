@@ -1153,3 +1153,34 @@ def test_decorate_response_search_asset_with_personid_field():
     url = decorated["assets"]["items"][0]["web_url"]
     assert "person-STRAY" not in url
     assert url == "https://photos.example.com/photos/asset-xyz"
+
+
+def test_decorate_single_asset_response_with_people_keeps_top_level_asset_url():
+    """Item 58: asset detail response should decorate top-level asset, not nested relation arrays."""
+    from claw2immich.tooling import _decorate_response
+
+    response = {
+        "id": "asset-main",
+        "type": "IMAGE",
+        "people": [{"id": "person-1", "name": "Ada"}],
+    }
+    decorated = _decorate_response(response, "https://photos.example.com", "asset")
+
+    assert decorated["web_url"] == "https://photos.example.com/photos/asset-main"
+    assert "web_url" not in decorated["people"][0]
+
+
+def test_decorate_single_asset_response_does_not_create_people_photo_links():
+    """Item 59: nested person objects must never get /photos/{person-id} via asset context."""
+    from claw2immich.tooling import _decorate_response
+
+    response = {
+        "id": "asset-main-2",
+        "type": "IMAGE",
+        "people": [{"id": "person-2", "name": "Grace"}],
+    }
+    decorated = _decorate_response(response, "https://photos.example.com", "asset")
+
+    assert decorated["web_url"] == "https://photos.example.com/photos/asset-main-2"
+    nested = decorated["people"][0]
+    assert "web_url" not in nested

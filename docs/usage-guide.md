@@ -118,17 +118,18 @@ Example call:
 - Tool: `immich_getassetbyid`
 - Args: `{ "path_id": "<asset-id>" }`
 
-### Download Original Asset File (Base64/Binary)
-Use `downloadAsset` when the MCP client needs file content but does not have direct access to an Immich API key.
+### Download Original Asset File (Link/Base64)
+Use `downloadAsset` when the MCP client needs download access but does not have direct access to an Immich API key.
 
 1. Call `downloadAsset` with `asset_id`.
 2. Optional: set `output`:
   - `base64` (default) for safe transport as text.
-  - `binary` request mode is accepted but returns base64 payload for transport safety.
+  - `binary` is accepted as an alias; MCP-safe output remains base64.
 3. Choose delivery strategy via `IMMICH_DOWNLOAD_ASSET_DELIVERY` on server side:
-   - `inline_base64` (default): server fetches bytes and returns base64 payload through MCP.
-   - `immich_link`: server returns a direct Immich download URL (`/api/assets/{id}/original`) instead of payload bytes.
-3. Read `content_type`, `size_bytes`, and optional `filename` from the response metadata.
+  - `shared_link` (default): server creates a short-lived tokenized shared link (30 minutes) and returns link metadata without payload bytes.
+  - `inline_base64`: server fetches bytes and returns base64 payload through MCP.
+   - `immich_link`: server first attempts shared-link creation; if unavailable, returns a direct Immich download URL (`/api/assets/{id}/original`) instead of payload bytes.
+4. Read link metadata (`download_url`, `expires_in_minutes`, `expires_at`) for shared-link mode or payload metadata (`content_type`, `size_bytes`, optional `filename`) for inline mode.
 
 Example calls:
 - Tool: `downloadAsset`

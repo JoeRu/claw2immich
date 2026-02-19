@@ -32,7 +32,9 @@ def register_prompts_and_resources(mcp) -> None:
         return (
             "Use the tool named downloadAsset. "
             "Pass asset_id and optional output mode. "
-            "output='base64' (default) returns a base64 string; output='binary' is mapped to base64 for transport safety. "
+            "By default, delivery mode is shared_link: the server returns a short-lived tokenized link (30 minutes) and no inline payload. "
+            "Set IMMICH_DOWNLOAD_ASSET_DELIVERY=inline_base64 only when inline base64 data is explicitly needed. "
+            "output='base64' and output='binary' are accepted, but MCP-safe payload output remains base64 in inline mode. "
             "Example args: {\"asset_id\": \"<asset-id>\", \"output\": \"base64\"}. "
             "This is useful when the MCP client does not have direct access to the API key. "
             f"Asset id: {asset_id}. Requested output mode: {output}."

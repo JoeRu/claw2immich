@@ -777,9 +777,201 @@
       </r>
     </item>
 
+    <item id="58" type="bug" status="DONE" priority="HIGH" complexity="S" security="false">
+      <title>getassetinfo: Top-level asset misses web_url while nested people are decorated</title>
+      <branch>bug/item-58-getassetinfo-missing-web-url</branch>
+      <depends-on></depends-on>
+      <justification>When calling `immich_getassetinfo` (`GET /api/assets/{id}`), the top-level asset may not receive `web_url`, while nested `people[]` objects are decorated instead. This breaks direct click-through from single-asset responses and indicates incorrect wrapped-array extraction precedence for single-entity endpoints.</justification>
+
+      <tasks>
+        <task id="58.1">Reproduce with real `immich_getassetinfo` payloads that contain `people[]` and capture decorated output (top-level + nested objects).</task>
+        <task id="58.2">Trace `_decorate_response` and `_extract_decoratable_array` for `url_type='asset'` to verify whether relation arrays (e.g., `people`) are incorrectly treated as top-level wrapped result arrays.</task>
+        <task id="58.3">Implement endpoint-shape guard: for non-`array` URL types, prioritize decorating the top-level entity before any wrapped-array extraction.</task>
+        <task id="58.4">Ensure top-level asset always receives `/photos/{asset-id}` `web_url` for `GET /assets/{id}` responses.</task>
+        <task id="58.5">Add regression tests for asset detail responses containing nested `people[]` (with and without people data) asserting top-level `web_url` presence and correctness.</task>
+      </tasks>
+
+      <verification>
+        <tests>
+          <test type="unit">pytest tests/test_url_decoration.py -v</test>
+          <test type="integration">pytest tests/test_integration_url_access.py -v</test>
+        </tests>
+        <manual-steps>
+          <step order="1">Call `immich_getassetinfo` for an asset with person tags and verify top-level `web_url` exists and equals `.../photos/{asset-id}`.</step>
+          <step order="2">Confirm nested relation objects do not block or replace top-level asset decoration.</step>
+          <step order="3">Verify existing search/list decoration behavior remains unchanged.</step>
+        </manual-steps>
+      </verification>
+
+      <impact-check>
+        <affected-items>
+          <item-ref id="46">Add IMMICH_EXTERNAL_DOMAIN parameter and include externalDomain-based URLs in tool responses</item-ref>
+          <item-ref id="52">Regression: web_url missing in immich_searchassets and immich_searchsmart item results</item-ref>
+          <item-ref id="56">Asset web_url may use person UUID instead of asset UUID for person-tagged assets</item-ref>
+        </affected-items>
+        <notes>Duplicate check: related to items 52/56 but not duplicate. This item specifically targets single-entity asset responses (`getassetinfo`) where relation-array extraction may preempt top-level decoration. Impact-check warning scan: referenced completed items are FULL/TESTED; no completeness/test-coverage warning required.</notes>
+      </impact-check>
+      <r>
+        <outcome>DONE</outcome>
+        <observations>Root cause confirmed in `_decorate_response`: array extraction ran before single-entity decoration and interpreted nested `people[]` in asset detail responses as wrapped top-level arrays. Added early-return logic for non-`array` url types so single-entity endpoints decorate the top-level dict first. This restores `web_url` on `immich_getassetinfo` asset responses.</observations>
+        <lessons-learned>Decoration flow must prioritize endpoint intent (single entity vs array endpoint) over opportunistic shape matching to avoid relation arrays hijacking response processing.</lessons-learned>
+        <files>
+          <file>claw2immich/tooling.py</file>
+          <file>tests/test_url_decoration.py</file>
+        </files>
+      </r>
+    </item>
+
+    <item id="59" type="bug" status="DONE" priority="MEDIUM" complexity="S" security="false">
+      <title>Nested person objects may be decorated with /photos/{id} instead of /people/{id}</title>
+      <branch>bug/item-59-nested-person-url-path</branch>
+      <depends-on>58</depends-on>
+      <justification>In mixed/nested responses, person objects can inherit parent `url_type='asset'` and be decorated with `/photos/{person-id}` instead of `/people/{person-id}`. This is semantically incorrect and confuses link consumers.</justification>
+
+      <tasks>
+        <task id="59.1">Reproduce nested person decoration under asset-detail response flows and capture current path/id mapping.</task>
+        <task id="59.2">Validate whether this issue disappears once item 58 is applied (single-entity early decoration path).</task>
+        <task id="59.3">If still reproducible, enforce local type inference for nested entities so person objects use person URL rules.</task>
+        <task id="59.4">Add regression tests ensuring person payloads are decorated as `/people/{id}` when decorated at all.</task>
+      </tasks>
+
+      <verification>
+        <tests>
+          <test type="unit">pytest tests/test_url_decoration.py -v</test>
+        </tests>
+        <manual-steps>
+          <step order="1">Trigger a response containing nested person objects and verify no `/photos/{person-id}` links are generated.</step>
+          <step order="2">Verify person links are either `/people/{id}` or omitted for nested relations by design.</step>
+        </manual-steps>
+      </verification>
+
+      <impact-check>
+        <affected-items>
+          <item-ref id="49">Person objects decorated with /photos/{id} instead of /people/{id} URLs</item-ref>
+          <item-ref id="56">Asset web_url may use person UUID instead of asset UUID for person-tagged assets</item-ref>
+          <item-ref id="58">getassetinfo: Top-level asset misses web_url while nested people are decorated</item-ref>
+        </affected-items>
+        <notes>Duplicate check: not a direct duplicate of item 49; scope here is nested/person-decoration under parent context and explicit dependency on item 58 investigation outcome.</notes>
+      </impact-check>
+      <r>
+        <outcome>DONE</outcome>
+        <observations>Item 59 was effectively resolved by item 58's single-entity precedence fix. Added regression tests proving nested people objects in asset-detail payloads no longer get decorated as `/photos/{person-id}` and that top-level asset URL remains correct.</observations>
+        <lessons-learned>Dependent URL-path bugs can be downstream symptoms; fixing the first routing/shape decision in the pipeline often resolves multiple path-composition failures.</lessons-learned>
+        <files>
+          <file>claw2immich/tooling.py</file>
+          <file>tests/test_url_decoration.py</file>
+        </files>
+      </r>
+    </item>
+
+    <item id="60" type="bug" status="DONE" priority="LOW" complexity="S" security="false">
+      <title>downloadAsset output parameter is misleading because binary request still returns base64</title>
+      <branch>bug/item-60-downloadasset-output-misleading</branch>
+      <depends-on></depends-on>
+      <justification>`downloadAsset(output='binary')` currently returns base64 payload (MCP-safe) plus warning metadata. The exposed parameter can mislead agents/users into expecting different payload types although runtime behavior is effectively identical.</justification>
+
+      <tasks>
+        <task id="60.1">Review `downloadAsset` schema/description and identify where `output` semantics are ambiguous for clients.</task>
+        <task id="60.2">Decide and implement one path: remove `output` parameter, or keep it as explicit alias with unambiguous docs/description.</task>
+        <task id="60.3">Align README and usage-guide wording with the selected contract.</task>
+        <task id="60.4">Add/adjust tests to assert stable MCP-safe base64 output contract for both accepted modes.</task>
+      </tasks>
+
+      <verification>
+        <tests>
+          <test type="unit">pytest tests/test_download_asset.py -v</test>
+          <test type="unit">pytest tests/test_mcp_app.py -v</test>
+        </tests>
+        <manual-steps>
+          <step order="1">Inspect generated tool schema and confirm the final `output` behavior is clear to MCP clients.</step>
+          <step order="2">Call `downloadAsset` with each supported mode and verify docs match actual response fields.</step>
+        </manual-steps>
+      </verification>
+
+      <impact-check>
+        <affected-items>
+          <item-ref id="51">Add downloadAsset tool with JSON-safe base64 and configurable link delivery</item-ref>
+          <item-ref id="53">Refactor downloadAsset delivery for MCP payload limits</item-ref>
+          <item-ref id="54">Native binary endpoints return corrupted payload via UTF-8/JSON serialization</item-ref>
+        </affected-items>
+        <notes>Duplicate check: related to items 51/54 but not duplicate; this item focuses on API contract clarity/UX semantics rather than transport safety implementation itself.</notes>
+      </impact-check>
+      <r>
+        <outcome>DONE</outcome>
+        <observations>Kept `output` for backward compatibility but made behavior explicit alias semantics: both `base64` and `binary` requests return MCP-safe base64 output without warning noise. Updated tests and usage docs accordingly so runtime behavior and client expectations are aligned.</observations>
+        <lessons-learned>When transport constraints force one output format, API parameters should be treated as compatibility aliases and documented clearly rather than implying distinct payload types.</lessons-learned>
+        <files>
+          <file>claw2immich/tooling.py</file>
+          <file>tests/test_download_asset.py</file>
+          <file>docs/usage-guide.md</file>
+        </files>
+      </r>
+    </item>
+
+    <item id="61" type="bug" status="DONE" priority="MEDIUM" complexity="M" security="true">
+      <title>downloadAsset should return short-lived shared link instead of payload data when API supports it</title>
+      <branch>bug/item-61-shared-link-30min-token</branch>
+      <depends-on></depends-on>
+      <justification>Large payload delivery over MCP can be unreliable and unnecessary for many client flows. For `downloadAsset`, the preferred behavior should be to return no file data and instead create a short-lived shared link (30 minutes) with a security token via Immich shared-link API (`/shared-links/createSharedLink`, see https://api.immich.app/endpoints/shared-links/createSharedLink) when available. The MCP response should then return only this link metadata.</justification>
+
+      <security-impact>
+        <category>AUTH</category>
+        <category>NETWORK</category>
+        <notes>Tokenized shared links must be time-limited (30 minutes), scoped to target assets, and never logged with secrets. Fallback behavior must avoid exposing long-lived public links unintentionally.</notes>
+      </security-impact>
+
+      <tasks>
+        <task id="61.1">Validate Immich API capability for shared-link creation (`/shared-links/createSharedLink`; https://api.immich.app/endpoints/shared-links/createSharedLink) and required request fields for asset targets, expiry, and tokenized access.</task>
+        <task id="61.2">Update `downloadAsset` flow so it does not return binary/base64 data when shared-link creation is supported; instead create a shared link with 30-minute validity and return link metadata.</task>
+        <task id="61.3">Ensure response includes link URL, expiry timestamp/duration (30 minutes), and explicit auth/security notes (tokenized link behavior).</task>
+        <task id="61.4">Define fallback behavior when shared-link endpoint is unavailable or denied (clear error or existing link-mode fallback), and document it.</task>
+        <task id="61.5">Add automated tests for successful shared-link creation, TTL=30 minutes, and failure/fallback paths.</task>
+        <task id="61.6">Update README and docs/usage-guide to state that `downloadAsset` returns links (not file payload) in this mode.</task>
+      </tasks>
+
+      <verification>
+        <tests>
+          <test type="unit">pytest tests/test_download_asset.py -v</test>
+          <test type="integration">pytest tests/test_mcp_client.py -v</test>
+        </tests>
+        <manual-steps>
+          <step order="1">Call `downloadAsset` for an asset and verify response returns a shared URL (no `data` payload) with 30-minute validity metadata.</step>
+          <step order="2">Open the returned link and verify tokenized access works until expiry.</step>
+          <step order="3">Verify behavior when shared-link API is unavailable (documented fallback/error path).</step>
+        </manual-steps>
+      </verification>
+
+      <impact-check>
+        <affected-items>
+          <item-ref id="51">Add downloadAsset tool with JSON-safe base64 and configurable link delivery</item-ref>
+          <item-ref id="53">Refactor downloadAsset delivery for MCP payload limits</item-ref>
+          <item-ref id="54">Native binary endpoints return corrupted payload via UTF-8/JSON serialization</item-ref>
+          <item-ref id="CF-11">Add MCP usage guide with server instructions and workflow examples</item-ref>
+        </affected-items>
+        <notes>Duplicate check: related to items 51/53 but not duplicate. This item changes delivery semantics to shared-link generation with explicit 30-minute validity and security-token-aware link return, instead of payload delivery. Impact-check warning scan: referenced completed features are FULL/TESTED; no completeness/test-coverage warning required.</notes>
+      </impact-check>
+      <r>
+        <outcome>DONE</outcome>
+        <observations>Implemented shared-link-first delivery for `downloadAsset` in `shared_link` and `immich_link` modes. The tool now attempts Immich shared-link creation (`/api/shared-links/createSharedLink` and fallback `/api/shared-links`) with 30-minute TTL and returns link-only metadata (no inline file payload). `shared_link` mode now fails clearly when creation is unavailable; `immich_link` mode falls back to direct authenticated Immich link. Added config support for `IMMICH_DOWNLOAD_ASSET_DELIVERY=shared_link`, plus tests for success/failure/fallback paths.</observations>
+        <lessons-learned>Link-based delivery should expose explicit fallback semantics per mode: strict mode for deterministic behavior (`shared_link`) and compatibility mode with graceful degradation (`immich_link`).</lessons-learned>
+        <files>
+          <file>claw2immich/tooling.py</file>
+          <file>claw2immich/config.py</file>
+          <file>tests/test_download_asset.py</file>
+          <file>tests/test_config.py</file>
+          <file>README.md</file>
+          <file>docs/usage-guide.md</file>
+        </files>
+      </r>
+    </item>
+
   </items>
 
   <changelog>
+    <entry date="2026-02-19" user="GitHub Copilot">Items 58, 59, 60, 61 implemented. Item 58/59: fixed single-entity URL decoration precedence so asset detail responses get top-level `web_url` and nested people are no longer misdecorated as `/photos/{person-id}`. Item 60: clarified `downloadAsset` output semantics by treating `binary` as alias for MCP-safe base64 without warning noise. Item 61: implemented shared-link-first delivery (30-minute TTL, tokenized link metadata) with strict `shared_link` mode and `immich_link` fallback behavior. Verification: `uv run pytest tests/test_url_decoration.py tests/test_download_asset.py tests/test_config.py -q --tb=short` → 128 passed.</entry>
+    <entry date="2026-02-19" user="GitHub Copilot">Approved items 58, 59, 60, 61. Status set to APPROVED. Branches: bug/item-58-getassetinfo-missing-web-url, bug/item-59-nested-person-url-path, bug/item-60-downloadasset-output-misleading, bug/item-61-shared-link-30min-token. Dependency warning: item 59 depends on item 58, which is APPROVED but not DONE yet. Security review: item 61 marked security="true" with AUTH/NETWORK impact due to short-lived tokenized shared-link semantics.</entry>
+    <entry date="2026-02-19" user="GitHub Copilot">Adjusted item 61 scope: `downloadAsset` should no longer return file data payload when supported by Immich API. New target behavior is creation of a short-lived shared link via `/shared-links/createSharedLink` with 30-minute validity and security-token-aware link return, including documented fallback when shared-link creation is unavailable.</entry>
+    <entry date="2026-02-19" user="GitHub Copilot">Added bug items 58-61 from ai-docs/bug-report.md (one item per report chapter). Item 58 (HIGH): getassetinfo top-level asset missing web_url while nested people get decorated. Item 59 (MEDIUM): nested person URL path may incorrectly use /photos/{id} (depends on 58). Item 60 (LOW): downloadAsset output parameter semantics are misleading because binary request still returns base64. Item 61 (MEDIUM): MCP transport truncation around 64KB requires explicit workaround path/documentation. Duplicate check outcome: all are related to existing items (49/51/52/53/54/56) but not direct duplicates due distinct endpoint scope or contract/workaround focus. All new items created as status PENDING per prompt.</entry>
     <entry date="2026-02-19" user="GitHub Copilot">Item 57 implemented. Added helper/smart_search_cli.py to list local .env files and run Smart Search via CLI parameters with direct JSON stdout output. Added focused tests in tests/test_helper_smart_search_cli.py (7 passed) and documented usage examples in README.</entry>
     <entry date="2026-02-19" user="GitHub Copilot">Added item 57 (MEDIUM FEATURE): Add helper script to list .env files and run Smart Search with direct JSON output. Status set to PENDING. Branch: feature/item-57-helper-env-list-smart-search-json. Duplicate check: no direct duplicate found; related to searchSmart/tooling items but distinct scope as a standalone helper CLI utility for local debugging and raw JSON output.</entry>
     <entry date="2026-02-19" user="GitHub Copilot">Item 56 implemented. Fixed asset URL decoration to prevent person UUID usage in `/photos/{id}` links by introducing URL-type-aware ID extraction precedence in tooling. Added regression coverage for mixed asset/person fields and strengthened integration verification to assert semantic ID/path correctness (not status-code-only). Verification: `pytest tests/test_url_decoration.py tests/test_integration_url_access.py -q` → 83 passed, 8 skipped.</entry>

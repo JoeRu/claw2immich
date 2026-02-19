@@ -5,6 +5,9 @@ from claw2immich.tooling import download_asset
 
 def test_download_asset_default_base64() -> None:
     with patch(
+        "claw2immich.tooling.get_download_asset_delivery_mode",
+        return_value="inline_base64",
+    ), patch(
         "claw2immich.tooling._request_bytes",
         return_value=(
             b"abc",
@@ -26,6 +29,9 @@ def test_download_asset_default_base64() -> None:
 
 def test_download_asset_binary_mode() -> None:
     with patch(
+        "claw2immich.tooling.get_download_asset_delivery_mode",
+        return_value="inline_base64",
+    ), patch(
         "claw2immich.tooling._request_bytes",
         return_value=(b"\x00\x01\x02", {"content-type": "application/octet-stream"}),
     ):
@@ -37,7 +43,7 @@ def test_download_asset_binary_mode() -> None:
     assert result["encoding"] == "base64"
     assert result["size_bytes"] == 3
     assert result["data"] == "AAEC"
-    assert "warning" in result
+    assert "warning" not in result
 
 
 def test_download_asset_rejects_invalid_output() -> None:
@@ -51,6 +57,9 @@ def test_download_asset_immich_link_delivery_mode() -> None:
     with patch(
         "claw2immich.tooling.get_download_asset_delivery_mode",
         return_value="immich_link",
+    ), patch(
+        "claw2immich.tooling._request",
+        side_effect=Exception("shared-link api unavailable"),
     ), patch(
         "claw2immich.tooling.get_external_domain",
         return_value=None,
@@ -76,6 +85,9 @@ def test_download_asset_immich_link_prefers_external_domain() -> None:
         "claw2immich.tooling.get_download_asset_delivery_mode",
         return_value="immich_link",
     ), patch(
+        "claw2immich.tooling._request",
+        side_effect=Exception("shared-link api unavailable"),
+    ), patch(
         "claw2immich.tooling.get_external_domain",
         return_value="https://photos.mydomain.com",
     ), patch(
@@ -91,3 +103,84 @@ def test_download_asset_immich_link_prefers_external_domain() -> None:
     assert result["asset_id"] == "asset-ext"
     assert result["delivery_mode"] == "immich_link"
     assert result["download_url"] == "https://photos.mydomain.com/api/assets/asset-ext/original"
+
+
+def test_download_asset_shared_link_mode_success() -> None:
+    with patch(
+        "claw2immich.tooling.get_download_asset_delivery_mode",
+        return_value="shared_link",
+    ), patch(
+        "claw2immich.tooling.get_external_domain",
+        return_value="https://photos.mydomain.com",
+    ), patch(
+        "claw2immich.tooling._request",
+        return_value={
+            "token": "abc-token",
+            "expiresAt": "2026-02-19T13:00:00Z",
+        },
+    ):
+        result = download_asset("asset-shared")
+
+    assert result["asset_id"] == "asset-shared"
+    assert result["delivery_mode"] == "shared_link"
+    assert result["download_url"] == "https://photos.mydomain.com/share/abc-token"
+    assert result["expires_in_minutes"] == 30
+    assert result["tokenized"] is True
+    assert result["requires_auth"] is False
+    assert "data" not in result
+
+
+def test_download_asset_shared_link_mode_failure() -> None:
+    with patch(
+        "claw2immich.tooling.get_download_asset_delivery_mode",
+        return_value="shared_link",
+    ), patch(
+        "claw2immich.tooling._request",
+        side_effect=Exception("forbidden"),
+    ):
+        result = download_asset("asset-shared-fail")
+
+    assert result["asset_id"] == "asset-shared-fail"
+    assert result["delivery_mode"] == "shared_link"
+    assert "error" in result
+
+
+def test_download_asset_immich_link_prefers_shared_link_when_available() -> None:
+    with patch(
+        "claw2immich.tooling.get_download_asset_delivery_mode",
+        return_value="immich_link",
+    ), patch(
+        "claw2immich.tooling.get_external_domain",
+        return_value="https://photos.mydomain.com",
+    ), patch(
+        "claw2immich.tooling._request",
+        return_value={
+            "url": "https://photos.mydomain.com/share/custom-link",
+            "expiresAt": "2026-02-19T13:00:00Z",
+        },
+    ):
+        result = download_asset("asset-immich-shared")
+
+    assert result["asset_id"] == "asset-immich-shared"
+    assert result["delivery_mode"] == "shared_link"
+    assert result["download_url"] == "https://photos.mydomain.com/share/custom-link"
+
+
+def test_download_asset_default_delivery_mode_is_shared_link() -> None:
+    with patch(
+        "claw2immich.tooling.get_download_asset_delivery_mode",
+        return_value="shared_link",
+    ), patch(
+        "claw2immich.tooling.get_external_domain",
+        return_value="https://photos.mydomain.com",
+    ), patch(
+        "claw2immich.tooling._request",
+        return_value={
+            "token": "default-token",
+            "expiresAt": "2026-02-19T13:00:00Z",
+        },
+    ):
+        result = download_asset("asset-default")
+
+    assert result["delivery_mode"] == "shared_link"
+    assert result["download_url"] == "https://photos.mydomain.com/share/default-token"

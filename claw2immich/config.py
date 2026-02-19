@@ -119,8 +119,8 @@ def profile_allows_admin(profile: str | None) -> bool:
 
 def get_download_asset_delivery_mode() -> str:
     """Return delivery mode for downloadAsset payloads."""
-    mode = os.getenv("IMMICH_DOWNLOAD_ASSET_DELIVERY", "inline_base64").strip().lower()
-    valid_modes = {"inline_base64", "immich_link"}
+    mode = os.getenv("IMMICH_DOWNLOAD_ASSET_DELIVERY", "shared_link").strip().lower()
+    valid_modes = {"inline_base64", "immich_link", "shared_link"}
     if mode not in valid_modes:
         raise ValueError(
             "IMMICH_DOWNLOAD_ASSET_DELIVERY must be one of: "

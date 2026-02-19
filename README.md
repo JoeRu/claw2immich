@@ -37,7 +37,7 @@ OpenAPI tool parameters use explicit, prefixed fields so MCP clients can discove
 
 Legacy fields `path_params`, `query_params`, `headers`, and `json_body` are still accepted for compatibility.
 
-`downloadAsset` is intended for clients that cannot access the Immich API key directly. The MCP server performs the authenticated download and returns payload data plus metadata (`content_type`, `size_bytes`, optional `filename`). For MCP JSON safety, payloads are base64-encoded; optional delivery mode `IMMICH_DOWNLOAD_ASSET_DELIVERY=immich_link` returns a direct Immich download URL instead of inline payload bytes.
+`downloadAsset` is intended for clients that cannot access the Immich API key directly. Default delivery mode is `shared_link`: the server returns a short-lived tokenized link (30 minutes) without inline payload data when supported by Immich shared-links API. For MCP JSON safety, inline payload delivery (`inline_base64`) remains base64-encoded. Optional compatibility mode `immich_link` returns a direct authenticated Immich URL.
 
 ## MCP documentation surfaces
 - Server instructions are sent during initialize. Use them as the short on-ramp and point to the usage guide resource.
@@ -54,7 +54,7 @@ Environment variables:
 - `IMMICH_PROFILE` (optional: `read_only`, `read_write`, or `full_scope`)
 - `IMMICH_WRITE_PROBE_PATH` (default `/api/assets`)
 - `IMMICH_WRITE_PROBE_METHOD` (default `POST`)
-- `IMMICH_DOWNLOAD_ASSET_DELIVERY` (optional: `inline_base64` (default) or `immich_link`)
+- `IMMICH_DOWNLOAD_ASSET_DELIVERY` (optional: `shared_link` (default), `inline_base64`, or `immich_link`)
 
 MCP server environment variables:
 - `MCP_TRANSPORT` (`stdio`, `sse`, or `streamable-http`; default `stdio`)

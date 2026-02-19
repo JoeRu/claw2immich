@@ -2,6 +2,7 @@ import logging
 import inspect
 import base64
 import re
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -290,6 +291,12 @@ def _decorate_response(
     """
     if not external_domain:
         return response
+
+    # Single-entity endpoints should decorate the top-level object directly.
+    # This prevents relation arrays like `people` inside asset detail responses
+    # from being misinterpreted as top-level wrapped result arrays.
+    if url_type != "array" and isinstance(response, dict):
+        return _decorate_single_item(response, external_domain, url_type)
     
     # Try to extract a decoratable array (handles both direct and wrapped)
     decoratable_array, wrapper_type = _extract_decoratable_array(response)
@@ -587,13 +594,134 @@ def write_capability_report() -> dict[str, str | bool]:
 
 
 def download_asset(asset_id: str, output: str = "base64") -> dict[str, Any]:
-    """Download an asset file and return a JSON-safe payload (base64)."""
+    """Download an asset or return a link-based delivery payload."""
     try:
         mode = (output or "base64").strip().lower()
-        if mode not in ("base64", "binary"):
-            raise ValueError("output must be 'base64' or 'binary'")
+        if mode not in ("base64"):
+            raise ValueError("output must be 'base64'")
 
         delivery_mode = get_download_asset_delivery_mode()
+
+        def _resolve_shared_link_url(
+            payload: dict[str, Any],
+            external_domain: str,
+        ) -> str | None:
+            direct_url = payload.get("url") or payload.get("sharedUrl") or payload.get("sharedLink")
+            if isinstance(direct_url, str) and direct_url.strip():
+                url = direct_url.strip()
+                if url.startswith("http://") or url.startswith("https://"):
+                    return url
+                return f"{external_domain}/{url.lstrip('/')}"
+
+            token = payload.get("token") or payload.get("key") or payload.get("slug")
+            if isinstance(token, str) and token.strip():
+                return f"{external_domain}/share/{token.strip()}"
+
+            link_id = payload.get("id")
+            if isinstance(link_id, str) and link_id.strip():
+                return f"{external_domain}/share/{link_id.strip()}"
+
+            return None
+
+        def _create_shared_link(ttl_minutes: int = 30) -> dict[str, Any]:
+            expires_at = datetime.now(timezone.utc) + timedelta(minutes=ttl_minutes)
+            expires_at_iso = expires_at.replace(microsecond=0).isoformat().replace("+00:00", "Z")
+            external_domain = get_external_domain() or _get_config()["base_url"]
+
+            candidate_requests: list[tuple[str, dict[str, Any]]] = [
+                (
+                    "/api/shared-links/createSharedLink",
+                    {
+                        "type": "INDIVIDUAL",
+                        "assetIds": [asset_id],
+                        "expiresAt": expires_at_iso,
+                    },
+                ),
+                (
+                    "/api/shared-links",
+                    {
+                        "type": "INDIVIDUAL",
+                        "assetIds": [asset_id],
+                        "expiresAt": expires_at_iso,
+                    },
+                ),
+                (
+                    "/api/shared-links/createSharedLink",
+                    {
+                        "assetIds": [asset_id],
+                        "expiresAt": expires_at_iso,
+                    },
+                ),
+                (
+                    "/api/shared-links",
+                    {
+                        "assetIds": [asset_id],
+                        "expiresAt": expires_at_iso,
+                    },
+                ),
+            ]
+
+            errors: list[str] = []
+            for api_path, payload in candidate_requests:
+                try:
+                    response = _request(
+                        "POST",
+                        api_path,
+                        json_body=payload,
+                        require_auth=True,
+                    )
+                except Exception as exc:
+                    errors.append(f"{api_path}: {exc}")
+                    continue
+
+                if not isinstance(response, dict):
+                    errors.append(f"{api_path}: non-dict response")
+                    continue
+
+                shared_url = _resolve_shared_link_url(response, external_domain)
+                if not shared_url:
+                    errors.append(f"{api_path}: shared URL/token missing")
+                    continue
+
+                return {
+                    "ok": True,
+                    "delivery_mode": "shared_link",
+                    "asset_id": asset_id,
+                    "download_url": shared_url,
+                    "expires_in_minutes": ttl_minutes,
+                    "expires_at": response.get("expiresAt") or expires_at_iso,
+                    "tokenized": True,
+                    "requires_auth": False,
+                    "source": api_path,
+                }
+
+            return {"ok": False, "error": "; ".join(errors) if errors else "shared link creation failed"}
+
+        if delivery_mode in ("immich_link", "shared_link"):
+            shared_link_result = _create_shared_link(ttl_minutes=30)
+            if shared_link_result.get("ok"):
+                return {
+                    "asset_id": asset_id,
+                    "delivery_mode": "shared_link",
+                    "download_url": shared_link_result["download_url"],
+                    "expires_in_minutes": shared_link_result["expires_in_minutes"],
+                    "expires_at": shared_link_result["expires_at"],
+                    "tokenized": True,
+                    "requires_auth": False,
+                    "note": (
+                        "Short-lived shared link generated via Immich shared-links API. "
+                        "No inline file payload is returned in this mode."
+                    ),
+                }
+
+        if delivery_mode == "shared_link":
+            return {
+                "asset_id": asset_id,
+                "delivery_mode": "shared_link",
+                "error": "Shared-link delivery is configured but shared-link creation is unavailable.",
+                "fallback": "Switch IMMICH_DOWNLOAD_ASSET_DELIVERY to immich_link or inline_base64.",
+            }
+
         if delivery_mode == "immich_link":
             config = _get_config()
             domain = get_external_domain() or config["base_url"]
@@ -603,8 +731,8 @@ def download_asset(asset_id: str, output: str = "base64") -> dict[str, Any]:
                 "download_url": f"{domain}/api/assets/{asset_id}/original",
                 "requires_auth": True,
                 "note": (
-                    "Client must authenticate directly against Immich when using immich_link mode. "
-                    "Use inline_base64 mode when direct Immich credentials are unavailable."
+                    "Shared-link creation unavailable; falling back to direct Immich authenticated link. "
+                    "Client must authenticate directly against Immich when using immich_link mode."
                 ),
             }
 
@@ -632,10 +760,6 @@ def download_asset(asset_id: str, output: str = "base64") -> dict[str, Any]:
             "size_bytes": len(content),
             "data": payload,
         }
-        if mode == "binary":
-            result[
-                "warning"
-            ] = "Raw binary output is disabled for MCP JSON transport safety. Returned base64 instead."
         if filename:
             result["filename"] = filename
         return result
