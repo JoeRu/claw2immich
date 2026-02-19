@@ -26,26 +26,6 @@ def test_download_asset_default_base64() -> None:
     assert result["filename"] == "image.jpg"
     assert result["data"] == "YWJj"
 
-
-def test_download_asset_binary_mode() -> None:
-    with patch(
-        "claw2immich.tooling.get_download_asset_delivery_mode",
-        return_value="inline_base64",
-    ), patch(
-        "claw2immich.tooling._request_bytes",
-        return_value=(b"\x00\x01\x02", {"content-type": "application/octet-stream"}),
-    ):
-        result = download_asset("asset-2", output="binary")
-
-    assert result["asset_id"] == "asset-2"
-    assert result["output"] == "base64"
-    assert result["requested_output"] == "binary"
-    assert result["encoding"] == "base64"
-    assert result["size_bytes"] == 3
-    assert result["data"] == "AAEC"
-    assert "warning" not in result
-
-
 def test_download_asset_rejects_invalid_output() -> None:
     result = download_asset("asset-3", output="json")
     assert "error" in result

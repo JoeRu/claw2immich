@@ -897,8 +897,8 @@
         <notes>Duplicate check: related to items 51/54 but not duplicate; this item focuses on API contract clarity/UX semantics rather than transport safety implementation itself.</notes>
       </impact-check>
       <r>
-        <outcome>DONE</outcome>
-        <observations>Kept `output` for backward compatibility but made behavior explicit alias semantics: both `base64` and `binary` requests return MCP-safe base64 output without warning noise. Updated tests and usage docs accordingly so runtime behavior and client expectations are aligned.</observations>
+        <outcome>PROBLEM</outcome>
+        <observations>Full-suite regression detected on 2026-02-19: `tests/test_download_asset.py::test_download_asset_binary_mode` fails with `KeyError: 'asset_id'`. Failure path shows `download_asset()` currently validates `output` with `if mode not in ("base64")`, rejecting `output="binary"` and returning an error payload (without `asset_id`) instead of the expected MCP-safe base64 response. Item moved back to IN_PROGRESS for corrective implementation.</observations>
         <lessons-learned>When transport constraints force one output format, API parameters should be treated as compatibility aliases and documented clearly rather than implying distinct payload types.</lessons-learned>
         <files>
           <file>claw2immich/tooling.py</file>
@@ -968,6 +968,7 @@
   </items>
 
   <changelog>
+    <entry date="2026-02-19" user="GitHub Copilot">Full test run executed (`uv run pytest tests/ -q --tb=short`): 1 failed, 206 passed, 8 skipped. Failure mapped to DONE item 60 via `tests/test_download_asset.py` + `claw2immich/tooling.py` (`test_download_asset_binary_mode` KeyError after binary-output validation rejection). Item 60 set back to IN_PROGRESS with outcome PROBLEM for follow-up fix.</entry>
     <entry date="2026-02-19" user="GitHub Copilot">Items 58, 59, 60, 61 implemented. Item 58/59: fixed single-entity URL decoration precedence so asset detail responses get top-level `web_url` and nested people are no longer misdecorated as `/photos/{person-id}`. Item 60: clarified `downloadAsset` output semantics by treating `binary` as alias for MCP-safe base64 without warning noise. Item 61: implemented shared-link-first delivery (30-minute TTL, tokenized link metadata) with strict `shared_link` mode and `immich_link` fallback behavior. Verification: `uv run pytest tests/test_url_decoration.py tests/test_download_asset.py tests/test_config.py -q --tb=short` → 128 passed.</entry>
     <entry date="2026-02-19" user="GitHub Copilot">Approved items 58, 59, 60, 61. Status set to APPROVED. Branches: bug/item-58-getassetinfo-missing-web-url, bug/item-59-nested-person-url-path, bug/item-60-downloadasset-output-misleading, bug/item-61-shared-link-30min-token. Dependency warning: item 59 depends on item 58, which is APPROVED but not DONE yet. Security review: item 61 marked security="true" with AUTH/NETWORK impact due to short-lived tokenized shared-link semantics.</entry>
     <entry date="2026-02-19" user="GitHub Copilot">Adjusted item 61 scope: `downloadAsset` should no longer return file data payload when supported by Immich API. New target behavior is creation of a short-lived shared link via `/shared-links/createSharedLink` with 30-minute validity and security-token-aware link return, including documented fallback when shared-link creation is unavailable.</entry>
